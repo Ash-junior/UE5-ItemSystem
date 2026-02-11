@@ -1,0 +1,62 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Core/ItemSystemTypes.h"
+#include "ExecutionStrategy.generated.h"
+
+class UNiagaraSystem;
+class USoundBase;
+
+class UItemTargetingStrategy;
+class UItemPayloadStrategy;
+
+/**
+ * The physical representation of the item in the world (Projectile, Trap, etc.).
+ * Responsible for movement, collision, and executing the Payload on hit.
+ */
+UCLASS(Abstract, Blueprintable)
+class ITEMSYSTEM_API AItemExecutionStrategy : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	AItemExecutionStrategy();
+
+protected:
+	// The context passed from the inventory when spawned.
+	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item System", Meta = (ExposeOnSpawn = "true"))
+	FItemContext ItemContext;
+
+	// Default trail VFX
+	UPROPERTY(EditDefaultsOnly, Category = "Effects")
+	UNiagaraSystem* TrailVFX;
+
+	// Sound played when this actor spawns
+	UPROPERTY(EditDefaultsOnly, Category = "Effects")
+	USoundBase* SpawnSound;
+	
+	// Instances created at runtime based on the ItemDefinition
+	UPROPERTY()
+	UItemTargetingStrategy* TargetingInstance;
+
+	UPROPERTY()
+	UItemPayloadStrategy* PayloadInstance;
+	
+public:
+	// Helper to allow the Manager to set context before BeginPlay
+	void SetItemContext(const FItemContext& InContext) { ItemContext = InContext; }	
+
+	// Helper to get the context
+	UFUNCTION(BlueprintPure, Category = "Item System")
+	const FItemContext& GetItemContext() const { return ItemContext; }
+	
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+protected:
+	virtual void BeginPlay() override;
+
+	// Called when the execution is finished (e.g., hit target) to cleanup.
+	UFUNCTION(BlueprintCallable, Category = "Item System")
+	void FinishExecution();
+};

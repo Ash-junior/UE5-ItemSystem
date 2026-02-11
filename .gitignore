@@ -1,0 +1,18 @@
+# UE build artifacts
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.opensdf
+*.sdf
+
+# OS
+.DS_Store
+Thumbs.db
