@@ -1,6 +1,7 @@
 #include "Core/ItemSystemManager.h"
 #include "Data/ItemDefinition.h"
 #include "Strategies/ExecutionStrategy.h"
+#include "Distribution/ItemDistributionPolicy.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameStateBase.h"
 
@@ -52,6 +53,16 @@ UItemDefinition* UItemSystemManager::GetItemByQuery(FGameplayTagQuery Query) con
     }
 
     return nullptr;
+}
+
+UItemDefinition* UItemSystemManager::GetItemByPolicy(UItemDistributionPolicy* Policy, AActor* Requester) const
+{
+    if (!Policy || GlobalItemRegistry.Num() == 0)
+    {
+        return nullptr;
+    }
+
+    return Policy->SelectItem(Requester, GlobalItemRegistry);
 }
 
 AItemExecutionStrategy* UItemSystemManager::SpawnItemExecution(const FItemContext& Context)

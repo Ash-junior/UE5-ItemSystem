@@ -8,6 +8,7 @@
 
 class UItemDefinition;
 class AItemExecutionStrategy;
+class UItemDistributionPolicy;
 
 /**
  * The central manager for the Item System.
@@ -63,6 +64,12 @@ public:
      */
     UFUNCTION(BlueprintCallable, Category = "Item System")
     UItemDefinition* GetItemByQuery(FGameplayTagQuery Query) const;
+
+    /**
+     * Returns an item selected by a distribution policy.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System")
+    UItemDefinition* GetItemByPolicy(UItemDistributionPolicy* Policy, AActor* Requester) const;
 
     /**
      * The Main Function: Transforms a Context into a real World Actor.
