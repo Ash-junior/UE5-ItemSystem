@@ -26,4 +26,11 @@ public:
 	 */
 	UFUNCTION(Exec)
 	void Cheat_ClearInventory();
+
+	/**
+	 * Simulate an impact by applying the payload matching a tag query to the hit actor.
+	 * Command: Cheat_SimulateImpact "Tag.Query"
+	 */
+	UFUNCTION(Exec)
+	void Cheat_SimulateImpact(FString TagQueryString);
 };

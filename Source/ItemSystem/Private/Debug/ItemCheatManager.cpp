@@ -5,6 +5,8 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "GameplayTagContainer.h"
+#include "Strategies/ItemPayloadStrategy.h"
+#include "Engine/World.h"
 
 namespace
 {
@@ -285,8 +287,110 @@ void UItemCheatManager::Cheat_GiveItem(FString TagQueryString)
 
 void UItemCheatManager::Cheat_ClearInventory()
 {
-    // Implementation left as an exercise (set CurrentItem to nullptr in Inventory)
-    // For now, simple log.
-    UE_LOG(LogTemp, Log, TEXT("Cheat: Clear Inventory not fully implemented yet."));
+    APawn* MyPawn = GetPlayerController() ? GetPlayerController()->GetPawn() : nullptr;
+    if (!MyPawn)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: No Pawn found!"));
+        return;
+    }
+
+    UInventoryComponent* Inventory = MyPawn->FindComponentByClass<UInventoryComponent>();
+    if (!Inventory)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: Pawn has no Inventory Component!"));
+        return;
+    }
+
+    Inventory->Server_ClearInventory();
+    UE_LOG(LogTemp, Log, TEXT("Cheat: Inventory cleared."));
+}
+
+void UItemCheatManager::Cheat_SimulateImpact(FString TagQueryString)
+{
+    APawn* MyPawn = GetPlayerController() ? GetPlayerController()->GetPawn() : nullptr;
+    if (!MyPawn)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: No Pawn found!"));
+        return;
+    }
+
+    UItemSystemManager* Manager = UItemSystemManager::Get(this);
+    if (!Manager)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Cheat: ItemSystemManager is missing from GameState!"));
+        return;
+    }
+
+    FGameplayTagQuery Query;
+    FString ParseError;
+    FTagQueryParser Parser(TagQueryString);
+    if (!Parser.Build(Query, ParseError))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: Invalid Tag Query. %s"), *ParseError);
+        return;
+    }
+
+    UItemDefinition* FoundItem = Manager->GetItemByQuery(Query);
+    if (!FoundItem || FoundItem->PayloadClass.IsNull())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: No item/payload found matching query: %s"), *TagQueryString);
+        return;
+    }
+
+    UClass* PayloadClass = FoundItem->PayloadClass.LoadSynchronous();
+    if (!PayloadClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: Failed to load payload class for item: %s"), *FoundItem->GetName());
+        return;
+    }
+
+    UItemPayloadStrategy* Payload = NewObject<UItemPayloadStrategy>(this, PayloadClass);
+    if (!Payload)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: Failed to instantiate payload for item: %s"), *FoundItem->GetName());
+        return;
+    }
+
+    // Trace from camera
+    FVector ViewLoc;
+    FRotator ViewRot;
+    GetPlayerController()->GetPlayerViewPoint(ViewLoc, ViewRot);
+
+    const FVector Start = ViewLoc;
+    const FVector End = Start + (ViewRot.Vector() * 10000.0f);
+
+    FHitResult Hit;
+    FCollisionQueryParams Params;
+    Params.AddIgnoredActor(MyPawn);
+
+    UWorld* World = GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    if (!World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: No actor hit."));
+        return;
+    }
+
+    AActor* HitActor = Hit.GetActor();
+    if (!HitActor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Cheat: No actor hit."));
+        return;
+    }
+
+    FItemContext Context;
+    Context.Instigator = MyPawn;
+    Context.InstigatorController = GetPlayerController();
+    Context.TargetActor = HitActor;
+    Context.OriginTransform = FTransform(ViewRot, Start);
+    Context.ItemDefinition = FoundItem;
+    Context.ContextTags = FoundItem->IdentityTags;
+
+    Payload->ApplyEffect(HitActor, Context);
+    UE_LOG(LogTemp, Log, TEXT("Cheat: Applied payload %s to %s"), *PayloadClass->GetName(), *HitActor->GetName());
 }
 

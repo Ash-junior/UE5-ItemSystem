@@ -75,6 +75,14 @@ void UInventoryComponent::Server_GrantItem_Implementation(UItemDefinition* NewIt
     OnRep_CurrentItem();
 }
 
+void UInventoryComponent::Server_ClearInventory_Implementation()
+{
+    CurrentItem = nullptr;
+    CurrentAmmo = 0;
+    LastActivationTime = -FLT_MAX;
+    OnRep_CurrentItem();
+}
+
 void UInventoryComponent::Server_TryActivateItem_Implementation()
 {
     // 1. Validation Checks

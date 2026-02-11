@@ -78,6 +78,12 @@ public:
     UFUNCTION(BlueprintPure, Category = "Inventory")
     int32 GetCurrentAmmo() const { return CurrentAmmo; }
 
+    /**
+     * [Server Only] Clears current item and ammo.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "Inventory")
+    void Server_ClearInventory();
+
 protected:
     // --- Internal Logic ---
 
