@@ -3,6 +3,7 @@
 #include "Strategies/ItemPayloadStrategy.h"
 #include "Core/ItemInterface.h"
 #include "Core/ItemSystemManager.h"
+#include "Core/ItemSystemLog.h"
 #include "Core/TargetableInterface.h"
 #include "Data/ItemDefinition.h"
 
@@ -121,6 +122,10 @@ void AItemExecutionStrategy::FinishExecution()
         if (Manager)
         {
             Manager->ReleaseExecutionActor(this);
+            if (IsItemSystemQAEnabled())
+            {
+                UE_LOG(LogItemSystem, Log, TEXT("QA: Released execution actor %s to pool"), *GetName());
+            }
         }
         else
         {
@@ -176,6 +181,10 @@ bool AItemExecutionStrategy::ShouldAffectActor(AActor* OtherActor) const
             const int32 TargetTeam = IItemInterface::Execute_GetTeamID(OtherActor);
             if (InstigatorTeam == TargetTeam)
             {
+                if (IsItemSystemQAEnabled())
+                {
+                    UE_LOG(LogItemSystem, Log, TEXT("QA: Team filter blocked actor %s"), *OtherActor->GetName());
+                }
                 return false;
             }
         }
@@ -186,6 +195,10 @@ bool AItemExecutionStrategy::ShouldAffectActor(AActor* OtherActor) const
     {
         if (ITargetableInterface::Execute_IsImmuneTo(OtherActor, ItemContext.ContextTags))
         {
+            if (IsItemSystemQAEnabled())
+            {
+                UE_LOG(LogItemSystem, Log, TEXT("QA: Immunity blocked actor %s"), *OtherActor->GetName());
+            }
             return false;
         }
     }

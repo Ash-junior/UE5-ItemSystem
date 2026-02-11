@@ -1,5 +1,6 @@
 #include "Components/ItemEffectComponent.h"
 
+#include "Core/ItemSystemLog.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
 
@@ -63,6 +64,11 @@ void UItemEffectComponent::AddOrRefreshEffect(const FItemEffectSpec& Spec)
 	}
 
 	BroadcastEffectsChanged();
+	if (IsItemSystemQAEnabled())
+	{
+		UE_LOG(LogItemSystem, Log, TEXT("QA: Effect added/refreshed %s (Magnitude: %.2f, Duration: %.2f)"),
+			*Spec.EffectTag.ToString(), Spec.Magnitude, Spec.Duration);
+	}
 }
 
 void UItemEffectComponent::RemoveEffectByTag(FGameplayTag Tag)
@@ -92,6 +98,10 @@ void UItemEffectComponent::RemoveEffectInternal(const FGameplayTag& Tag)
 	}
 
 	BroadcastEffectsChanged();
+	if (IsItemSystemQAEnabled())
+	{
+		UE_LOG(LogItemSystem, Log, TEXT("QA: Effect removed %s"), *Tag.ToString());
+	}
 }
 
 void UItemEffectComponent::OnRep_ActiveEffects()

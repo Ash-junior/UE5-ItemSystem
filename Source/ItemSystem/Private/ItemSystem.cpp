@@ -1,8 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ItemSystem.h"
+#include "Core/ItemSystemLog.h"
+#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "FItemSystemModule"
+
+DEFINE_LOG_CATEGORY(LogItemSystem);
+
+static TAutoConsoleVariable<int32> CVarItemSystemQA(
+	TEXT("ItemSystem.QA"),
+	0,
+	TEXT("Enable verbose QA logging for ItemSystem (0/1)."),
+	ECVF_Default
+);
+
+bool IsItemSystemQAEnabled()
+{
+	return CVarItemSystemQA.GetValueOnGameThread() > 0;
+}
 
 void FItemSystemModule::StartupModule()
 {

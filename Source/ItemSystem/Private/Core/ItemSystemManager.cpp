@@ -2,6 +2,7 @@
 #include "Data/ItemDefinition.h"
 #include "Strategies/ExecutionStrategy.h"
 #include "Distribution/ItemDistributionPolicy.h"
+#include "Core/ItemSystemLog.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameStateBase.h"
 
@@ -141,6 +142,10 @@ AItemExecutionStrategy* UItemSystemManager::GetPooledActor(UClass* ExecClass)
     }
 
     AActor* Actor = Pool->InactiveActors.Pop(false);
+    if (IsItemSystemQAEnabled() && Actor)
+    {
+        UE_LOG(LogItemSystem, Log, TEXT("QA: Reusing pooled actor %s"), *Actor->GetName());
+    }
     return Cast<AItemExecutionStrategy>(Actor);
 }
 
@@ -153,6 +158,10 @@ void UItemSystemManager::AddToPool(AItemExecutionStrategy* Actor)
 
     FItemActorPool& Pool = ActorPools.FindOrAdd(Actor->GetClass());
     Pool.InactiveActors.Add(Actor);
+    if (IsItemSystemQAEnabled())
+    {
+        UE_LOG(LogItemSystem, Log, TEXT("QA: Added actor to pool %s"), *Actor->GetName());
+    }
 }
 
 void UItemSystemManager::ReleaseExecutionActor(AItemExecutionStrategy* Actor)

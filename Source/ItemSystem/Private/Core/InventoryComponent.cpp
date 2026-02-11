@@ -2,6 +2,7 @@
 #include "Data/ItemDefinition.h"
 #include "Core/ItemSystemManager.h"
 #include "Core/ItemInterface.h"
+#include "Core/ItemSystemLog.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/ActorChannel.h"
 #include "Components/StaticMeshComponent.h"
@@ -102,6 +103,10 @@ void UInventoryComponent::Server_TryActivateItem_Implementation()
     AItemExecutionStrategy* NewActor = Manager->SpawnItemExecution(Context);
     if (!NewActor)
     {
+        if (IsItemSystemQAEnabled())
+        {
+            UE_LOG(LogItemSystem, Warning, TEXT("QA: Spawn failed for item %s"), *CurrentItem->GetName());
+        }
         UE_LOG(LogTemp, Warning, TEXT("Inventory: Failed to spawn execution for item %s"), *CurrentItem->GetName());
         return;
     }
@@ -137,6 +142,10 @@ bool UInventoryComponent::CanUseItem() const
         const float Now = World ? World->GetTimeSeconds() : 0.0f;
         if ((Now - LastActivationTime) < CurrentItem->Cooldown)
         {
+            if (IsItemSystemQAEnabled())
+            {
+                UE_LOG(LogItemSystem, Log, TEXT("QA: Cooldown blocked item %s"), *CurrentItem->GetName());
+            }
             return false;
         }
     }
@@ -148,6 +157,10 @@ bool UInventoryComponent::CanUseItem() const
         {
             if (IItemInterface::Execute_HasGameplayTag(OwnerActor, Tag))
             {
+                if (IsItemSystemQAEnabled())
+                {
+                    UE_LOG(LogItemSystem, Log, TEXT("QA: Blocking tag %s prevented item %s"), *Tag.ToString(), *CurrentItem->GetName());
+                }
                 return false;
             }
         }

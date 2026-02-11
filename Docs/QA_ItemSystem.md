@@ -11,6 +11,7 @@ This checklist validates the features implemented in the ItemSystem plugin.
    - GameState has `ItemSystemManager`.
    - Pawn has `InventoryComponent`.
 6. Optional: enable `bShowDebugVisuals` on execution BPs.
+7. Optional: enable QA logs: `ItemSystem.QA 1` in the console.
 
 ---
 
@@ -148,4 +149,3 @@ This checklist validates the features implemented in the ItemSystem plugin.
 **Expected**
 - Effect appears on clients.
 - Duration counts down and effect disappears at expiry.
-
