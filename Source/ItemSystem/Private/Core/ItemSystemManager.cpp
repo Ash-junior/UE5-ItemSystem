@@ -141,7 +141,7 @@ AItemExecutionStrategy* UItemSystemManager::GetPooledActor(UClass* ExecClass)
         return nullptr;
     }
 
-    AActor* Actor = Pool->InactiveActors.Pop(false);
+    AActor* Actor = Pool->InactiveActors.Pop(EAllowShrinking::No);
     if (IsItemSystemQAEnabled() && Actor)
     {
         UE_LOG(LogItemSystem, Log, TEXT("QA: Reusing pooled actor %s"), *Actor->GetName());

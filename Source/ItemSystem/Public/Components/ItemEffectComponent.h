@@ -66,5 +66,5 @@ private:
 	TMap<FGameplayTag, FTimerHandle> EffectTimers;
 
 	void BroadcastEffectsChanged();
-	void RemoveEffectInternal(const FGameplayTag& Tag);
+	void RemoveEffectInternal(FGameplayTag Tag);
 };

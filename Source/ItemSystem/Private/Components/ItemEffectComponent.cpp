@@ -81,7 +81,7 @@ void UItemEffectComponent::RemoveEffectByTag(FGameplayTag Tag)
 	RemoveEffectInternal(Tag);
 }
 
-void UItemEffectComponent::RemoveEffectInternal(const FGameplayTag& Tag)
+void UItemEffectComponent::RemoveEffectInternal(FGameplayTag Tag)
 {
 	ActiveEffects.RemoveAll([&Tag](const FItemActiveEffect& E)
 	{

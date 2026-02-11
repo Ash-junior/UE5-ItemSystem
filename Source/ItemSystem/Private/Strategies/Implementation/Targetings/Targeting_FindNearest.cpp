@@ -1,6 +1,7 @@
 #include "Strategies/Implementation/Targetings/Targeting_FindNearest.h"
 
 #include "Core/ItemInterface.h"
+#include "Data/ItemDefinition.h"
 #include "Core/TargetableInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
