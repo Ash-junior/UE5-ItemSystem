@@ -17,6 +17,12 @@ void AExecution_Instant::BeginPlay()
 	// 2. Apply Payload
 	if (PayloadInstance)
 	{
+		if (FoundTarget && !ShouldAffectActor(FoundTarget))
+		{
+			FinishExecution();
+			return;
+		}
+
 		// Apply to found target (can be null if strategy allows it, e.g. AOE)
 		PayloadInstance->ApplyEffect(FoundTarget, ItemContext);
 	}

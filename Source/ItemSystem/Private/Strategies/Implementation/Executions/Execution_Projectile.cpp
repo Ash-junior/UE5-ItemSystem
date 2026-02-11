@@ -138,6 +138,11 @@ bool AExecution_Projectile::CanTriggerOnActor(AActor* OtherActor) const
 		return false;
 	}
 
+	if (!ShouldAffectActor(OtherActor))
+	{
+		return false;
+	}
+
 	return true;
 }
 

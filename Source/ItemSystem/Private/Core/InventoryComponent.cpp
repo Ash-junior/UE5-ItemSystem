@@ -169,6 +169,22 @@ FItemContext UInventoryComponent::MakeItemContext() const
 
     // Set Origin (approximate to Actor location, ideally should be a muzzle socket)
     Context.OriginTransform = GetOwner()->GetActorTransform();
+    if (CurrentItem && CurrentItem->AttachSocketTag.IsValid() && GetOwner()->Implements<UItemInterface>())
+    {
+        FName SocketName;
+        USceneComponent* ParentComp = IItemInterface::Execute_GetSocketByTag(GetOwner(), CurrentItem->AttachSocketTag, SocketName);
+        if (ParentComp)
+        {
+            if (SocketName != NAME_None && ParentComp->DoesSocketExist(SocketName))
+            {
+                Context.OriginTransform = ParentComp->GetSocketTransform(SocketName, RTS_World);
+            }
+            else
+            {
+                Context.OriginTransform = ParentComp->GetComponentTransform();
+            }
+        }
+    }
 
     return Context;
 }

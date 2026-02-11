@@ -71,6 +71,11 @@ bool AExecution_Trap::CanTriggerOnActor(AActor* OtherActor) const
 		return false;
 	}
 
+	if (!ShouldAffectActor(OtherActor))
+	{
+		return false;
+	}
+
 	return true;
 }
 

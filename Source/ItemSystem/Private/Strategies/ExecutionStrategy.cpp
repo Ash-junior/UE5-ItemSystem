@@ -2,6 +2,8 @@
 #include "Strategies/ItemTargetingStrategy.h"
 #include "Strategies/ItemPayloadStrategy.h"
 #include "Data/ItemDefinition.h"
+#include "Core/ItemInterface.h"
+#include "Core/TargetableInterface.h"
 
 #include "Net/UnrealNetwork.h"
 #include "Components/SceneComponent.h"
@@ -111,6 +113,40 @@ void AItemExecutionStrategy::FinishExecution()
     {
         Destroy();
     }
+}
+
+bool AItemExecutionStrategy::ShouldAffectActor(AActor* OtherActor) const
+{
+    if (!OtherActor)
+    {
+        return false;
+    }
+
+    // Team filter (if item says to ignore teammates)
+    if (ItemContext.ItemDefinition && ItemContext.ItemDefinition->IdentityTags.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Rule.Ignore.Teammates"), false)))
+    {
+        const AActor* InstigatorActor = ItemContext.Instigator;
+        if (InstigatorActor && InstigatorActor->Implements<UItemInterface>() && OtherActor->Implements<UItemInterface>())
+        {
+            const int32 InstigatorTeam = IItemInterface::Execute_GetTeamID(InstigatorActor);
+            const int32 TargetTeam = IItemInterface::Execute_GetTeamID(OtherActor);
+            if (InstigatorTeam == TargetTeam)
+            {
+                return false;
+            }
+        }
+    }
+
+    // Immunity filter on target
+    if (OtherActor->Implements<UTargetableInterface>())
+    {
+        if (ITargetableInterface::Execute_IsImmuneTo(OtherActor, ItemContext.ContextTags))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // Note: The Tick function is available for child classes (Projectiles)

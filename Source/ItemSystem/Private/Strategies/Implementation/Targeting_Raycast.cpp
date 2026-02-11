@@ -1,4 +1,6 @@
 #include "Strategies/Implementation/Targeting_Raycast.h"
+#include "Core/ItemInterface.h"
+#include "Core/TargetableInterface.h"
 #include "Engine/World.h"
 
 AActor* UTargeting_Raycast::FindTarget_Implementation(const FItemContext& Context, FVector Origin)
@@ -32,7 +34,32 @@ AActor* UTargeting_Raycast::FindTarget_Implementation(const FItemContext& Contex
 
 	if (bHit)
 	{
-		return HitResult.GetActor();
+		AActor* HitActor = HitResult.GetActor();
+		if (!HitActor)
+		{
+			return nullptr;
+		}
+
+		const bool bIgnoreTeammates = Context.ItemDefinition && Context.ItemDefinition->IdentityTags.HasTag(FGameplayTag::RequestGameplayTag(TEXT("Rule.Ignore.Teammates"), false));
+		if (bIgnoreTeammates && Context.Instigator && Context.Instigator->Implements<UItemInterface>() && HitActor->Implements<UItemInterface>())
+		{
+			const int32 InstigatorTeam = IItemInterface::Execute_GetTeamID(Context.Instigator);
+			const int32 HitTeam = IItemInterface::Execute_GetTeamID(HitActor);
+			if (InstigatorTeam != INDEX_NONE && InstigatorTeam == HitTeam)
+			{
+				return nullptr;
+			}
+		}
+
+		if (HitActor->Implements<UTargetableInterface>())
+		{
+			if (ITargetableInterface::Execute_IsImmuneTo(HitActor, Context.ContextTags))
+			{
+				return nullptr;
+			}
+		}
+
+		return HitActor;
 	}
 
 	return nullptr;

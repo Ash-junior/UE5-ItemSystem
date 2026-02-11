@@ -59,4 +59,7 @@ protected:
 	// Called when the execution is finished (e.g., hit target) to cleanup.
 	UFUNCTION(BlueprintCallable, Category = "Item System")
 	void FinishExecution();
+
+	// Helper: should the item affect the other actor (team/immunity/context)
+	bool ShouldAffectActor(AActor* OtherActor) const;
 };
