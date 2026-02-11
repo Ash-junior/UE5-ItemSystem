@@ -1,5 +1,6 @@
 #include "Strategies/Implementation/Payloads/Payload_ModifySpeed.h"
 
+#include "Components/ItemEffectComponent.h"
 #include "Components/ItemSpeedModifierComponent.h"
 #include "Core/ItemInterface.h"
 #include "GameFramework/Character.h"
@@ -28,6 +29,19 @@ void UPayload_ModifySpeed::ApplyEffect_Implementation(AActor* Target, const FIte
 	Effect.EffectTag = TagToUse;
 	Effect.Magnitude = SpeedMultiplier;
 	Effect.Duration = Duration;
+
+	UItemEffectComponent* EffectComp = Target->FindComponentByClass<UItemEffectComponent>();
+	if (!EffectComp)
+	{
+		EffectComp = NewObject<UItemEffectComponent>(Target);
+		Target->AddInstanceComponent(EffectComp);
+		EffectComp->SetIsReplicated(true);
+		EffectComp->RegisterComponent();
+	}
+	if (EffectComp)
+	{
+		EffectComp->AddOrRefreshEffect(Effect);
+	}
 
 	if (Target->Implements<UItemInterface>())
 	{
