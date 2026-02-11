@@ -40,6 +40,11 @@ AExecution_Projectile::AExecution_Projectile()
 	SetReplicateMovement(true);
 }
 
+void AExecution_Projectile::ResetForReuse()
+{
+	bHasExploded = false;
+}
+
 void AExecution_Projectile::BeginPlay()
 {
 	// Update speed from config before Super::BeginPlay might run logic (though Super currently just calls BP)

@@ -1,9 +1,10 @@
 #include "Strategies/ExecutionStrategy.h"
 #include "Strategies/ItemTargetingStrategy.h"
 #include "Strategies/ItemPayloadStrategy.h"
-#include "Data/ItemDefinition.h"
 #include "Core/ItemInterface.h"
+#include "Core/ItemSystemManager.h"
 #include "Core/TargetableInterface.h"
+#include "Data/ItemDefinition.h"
 
 #include "Net/UnrealNetwork.h"
 #include "Components/SceneComponent.h"
@@ -24,6 +25,11 @@ AItemExecutionStrategy::AItemExecutionStrategy()
 
     // Create a root component so the actor has a transform
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+}
+
+void AItemExecutionStrategy::ResetForReuse()
+{
+    // Default does nothing. Child classes can override to reset state.
 }
 
 void AItemExecutionStrategy::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -111,7 +117,15 @@ void AItemExecutionStrategy::FinishExecution()
     // Only the server should decide to destroy the actor
     if (HasAuthority())
     {
-        Destroy();
+        UItemSystemManager* Manager = UItemSystemManager::Get(this);
+        if (Manager)
+        {
+            Manager->ReleaseExecutionActor(this);
+        }
+        else
+        {
+            Destroy();
+        }
     }
 }
 

@@ -55,6 +55,7 @@ protected:
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override; // Added for Debug Drawing
+	virtual void ResetForReuse() override;
 
 	/**
 	 * Bound to the SphereComponent's OnComponentHit.

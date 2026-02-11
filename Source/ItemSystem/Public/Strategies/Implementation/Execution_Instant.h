@@ -15,4 +15,5 @@ class ITEMSYSTEM_API AExecution_Instant : public AItemExecutionStrategy
 
 protected:
     virtual void BeginPlay() override;
+    virtual void ResetForReuse() override;
 };

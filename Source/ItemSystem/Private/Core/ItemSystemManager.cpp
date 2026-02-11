@@ -80,36 +80,33 @@ AItemExecutionStrategy* UItemSystemManager::SpawnItemExecution(const FItemContex
     UWorld* World = GetWorld();
     if (!World) return nullptr;
 
-    // 2. Spawn Actor Deferred (allows us to set variables BEFORE BeginPlay runs)
-    FTransform SpawnTransform = Context.OriginTransform;
-    
-    AItemExecutionStrategy* NewActor = World->SpawnActorDeferred<AItemExecutionStrategy>(
-        ExecClass, 
-        SpawnTransform, 
-        Context.Instigator, 
-        nullptr, 
+    // 2. Try pooled actor first
+    AItemExecutionStrategy* NewActor = GetPooledActor(ExecClass);
+    const FTransform SpawnTransform = Context.OriginTransform;
+
+    if (NewActor)
+    {
+        NewActor->SetItemContext(Context);
+        NewActor->SetActorTransform(SpawnTransform);
+        NewActor->SetActorHiddenInGame(false);
+        NewActor->SetActorEnableCollision(true);
+        NewActor->SetActorTickEnabled(true);
+        NewActor->ResetForReuse();
+        return NewActor;
+    }
+
+    // 3. Spawn Actor Deferred (allows us to set variables BEFORE BeginPlay runs)
+    NewActor = World->SpawnActorDeferred<AItemExecutionStrategy>(
+        ExecClass,
+        SpawnTransform,
+        Context.Instigator,
+        nullptr,
         ESpawnActorCollisionHandlingMethod::AlwaysSpawn
     );
 
     if (NewActor)
     {
-        // Pass the context manually since ExposeOnSpawn properties are handled here
-        // Note: In Blueprints, "ExposeOnSpawn" handles this automatically, but in C++ 
-        // with SpawnActorDeferred, we can set members directly or use UGameplayStatics::FinishSpawningActor
-        
-        // Assuming we have a setter or public member, but since it's ExposeOnSpawn in BP, 
-        // we rely on the reflection system or direct assignment if we made it public/friend.
-        // For this architecture, we'll assume we can set it via a helper method we defined earlier or direct access.
-        // (In the header Phase 2, ItemContext was protected, so let's assume we added a SetContext or made it public for the Manager).
-        
-        // Let's use a setup method or cast. Ideally, add `void Initialize(const FItemContext& InContext)` to AItemExecutionStrategy.
-        // For now, we assume we can set it via reflection or change the header slightly. 
-        // I will use a hypothetical 'SetContext' which you should add to ExecutionStrategy.h if not present.
-        
-        // *Hack for this snippet*: We can finish spawning now.
-        
         NewActor->SetItemContext(Context);
-        
         UGameplayStatics::FinishSpawningActor(NewActor, SpawnTransform);
     }
 
@@ -128,5 +125,48 @@ UClass* UItemSystemManager::ResolveExecutionClass(const TSoftClassPtr<AItemExecu
 
     // Synchronous Load (Simple but causes hitch if asset is huge)
     return SoftClass.LoadSynchronous();
+}
+
+AItemExecutionStrategy* UItemSystemManager::GetPooledActor(UClass* ExecClass)
+{
+    if (!ExecClass)
+    {
+        return nullptr;
+    }
+
+    FItemActorPool* Pool = ActorPools.Find(ExecClass);
+    if (!Pool || Pool->InactiveActors.Num() == 0)
+    {
+        return nullptr;
+    }
+
+    AActor* Actor = Pool->InactiveActors.Pop(false);
+    return Cast<AItemExecutionStrategy>(Actor);
+}
+
+void UItemSystemManager::AddToPool(AItemExecutionStrategy* Actor)
+{
+    if (!Actor)
+    {
+        return;
+    }
+
+    FItemActorPool& Pool = ActorPools.FindOrAdd(Actor->GetClass());
+    Pool.InactiveActors.Add(Actor);
+}
+
+void UItemSystemManager::ReleaseExecutionActor(AItemExecutionStrategy* Actor)
+{
+    if (!Actor)
+    {
+        return;
+    }
+
+    // Disable and hide
+    Actor->SetActorEnableCollision(false);
+    Actor->SetActorHiddenInGame(true);
+    Actor->SetActorTickEnabled(false);
+
+    AddToPool(Actor);
 }
 

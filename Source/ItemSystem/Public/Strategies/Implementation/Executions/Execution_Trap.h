@@ -41,6 +41,7 @@ protected:
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
+	virtual void ResetForReuse() override;
 
 	/**
 	 * Proximity trigger: fired when overlapping a valid target.

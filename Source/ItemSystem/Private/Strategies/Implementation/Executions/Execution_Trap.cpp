@@ -24,6 +24,11 @@ AExecution_Trap::AExecution_Trap()
 	RootComponent = TriggerComponent;
 }
 
+void AExecution_Trap::ResetForReuse()
+{
+	bHasTriggered = false;
+}
+
 void AExecution_Trap::BeginPlay()
 {
 	Super::BeginPlay();

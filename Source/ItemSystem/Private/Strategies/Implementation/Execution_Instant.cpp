@@ -35,3 +35,8 @@ void AExecution_Instant::BeginPlay()
 	FinishExecution();
 }
 
+void AExecution_Instant::ResetForReuse()
+{
+	// No state to reset for now.
+}
+

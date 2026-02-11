@@ -23,6 +23,10 @@ class ITEMSYSTEM_API AItemExecutionStrategy : public AActor
 public:
 	AItemExecutionStrategy();
 
+	// Called by the manager when this actor is reused from the pool.
+	UFUNCTION(BlueprintCallable, Category = "Item System")
+	virtual void ResetForReuse();
+
 protected:
 	// The context passed from the inventory when spawned.
 	UPROPERTY(BlueprintReadOnly, Replicated, Category = "Item System", Meta = (ExposeOnSpawn = "true"))

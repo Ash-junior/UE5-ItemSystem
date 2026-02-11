@@ -78,6 +78,12 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Item System")
     AItemExecutionStrategy* SpawnItemExecution(const FItemContext& Context);
 
+    /**
+     * Returns an actor to the pool for future reuse.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System")
+    void ReleaseExecutionActor(AItemExecutionStrategy* Actor);
+
 protected:
     
     // --- Internal Logic ---
@@ -87,4 +93,7 @@ protected:
      * In a production environment, this should ideally be async or preloaded.
      */
     UClass* ResolveExecutionClass(const TSoftClassPtr<AItemExecutionStrategy>& SoftClass);
+
+    AItemExecutionStrategy* GetPooledActor(UClass* ExecClass);
+    void AddToPool(AItemExecutionStrategy* Actor);
 };
