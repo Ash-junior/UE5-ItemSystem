@@ -36,6 +36,10 @@ protected:
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Inventory")
     int32 CurrentAmmo;
 
+    // Last time the current item was activated (server time)
+    UPROPERTY()
+    float LastActivationTime = -FLT_MAX;
+
     // --- Components ---
 
     // The mesh component representing the item visually (e.g. a missile on the roof).

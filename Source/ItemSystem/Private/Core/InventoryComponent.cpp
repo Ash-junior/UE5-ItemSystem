@@ -68,6 +68,7 @@ void UInventoryComponent::Server_GrantItem_Implementation(UItemDefinition* NewIt
     {
         CurrentItem = NewItem;
         CurrentAmmo = FMath::Clamp<int32>(Amount, 1, NewItem->MaxStack);
+        LastActivationTime = -FLT_MAX;
     }
 
     // Force update on server side too
@@ -90,10 +91,16 @@ void UInventoryComponent::Server_TryActivateItem_Implementation()
 
     // 3. Create Context and Spawn
     FItemContext Context = MakeItemContext();
-    Manager->SpawnItemExecution(Context);
+    AItemExecutionStrategy* NewActor = Manager->SpawnItemExecution(Context);
+    if (!NewActor)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Inventory: Failed to spawn execution for item %s"), *CurrentItem->GetName());
+        return;
+    }
 
     // 4. Handle Ammo Consumption
     CurrentAmmo--;
+    LastActivationTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastActivationTime;
     
     if (CurrentAmmo <= 0)
     {
@@ -110,12 +117,32 @@ bool UInventoryComponent::CanUseItem() const
     AActor* OwnerActor = GetOwner();
     if (!OwnerActor || !OwnerActor->Implements<UItemInterface>()) return false;
 
-    // Check Blocking Tags (e.g., is the player Stunned?)
-    if (CurrentItem && !CurrentItem->UsageBlockingTags.IsEmpty())
+    if (!CurrentItem)
     {
-        // Iterate blocking tags and ask interface if owner has them
-        // Note: Ideally, IItemInterface should return a TagContainer to compare against.
-        // For now, we assume simple checks.
+        return false;
+    }
+
+    // Check Cooldown
+    if (CurrentItem->Cooldown > 0.0f)
+    {
+        const UWorld* World = GetWorld();
+        const float Now = World ? World->GetTimeSeconds() : 0.0f;
+        if ((Now - LastActivationTime) < CurrentItem->Cooldown)
+        {
+            return false;
+        }
+    }
+
+    // Check Blocking Tags (e.g., is the player Stunned?)
+    if (!CurrentItem->UsageBlockingTags.IsEmpty())
+    {
+        for (const FGameplayTag& Tag : CurrentItem->UsageBlockingTags)
+        {
+            if (IItemInterface::Execute_HasGameplayTag(OwnerActor, Tag))
+            {
+                return false;
+            }
+        }
     }
 
     return true;
