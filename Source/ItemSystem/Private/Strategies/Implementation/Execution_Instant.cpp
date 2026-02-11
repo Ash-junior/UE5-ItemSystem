@@ -31,6 +31,10 @@ void AExecution_Instant::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("Execution_Instant: No Payload Strategy found!"));
 	}
 
+	// Optional impact FX (target or origin)
+	const FVector ImpactLocation = FoundTarget ? FoundTarget->GetActorLocation() : GetActorLocation();
+	PlayImpactFX(ImpactLocation);
+
 	// 3. Cleanup immediately
 	FinishExecution();
 }

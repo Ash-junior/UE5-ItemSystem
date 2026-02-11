@@ -160,6 +160,16 @@ void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveCompo
 
 	bHasExploded = true;
 	
+	FVector ImpactPoint = GetActorLocation();
+	if (Hit)
+	{
+		ImpactPoint = Hit->ImpactPoint;
+	}
+	else if (OtherComp)
+	{
+		ImpactPoint = OtherComp->GetComponentLocation();
+	}
+
 	if (bShowDebugVisuals && GEngine)
 	{
 		const TCHAR* TriggerLabel = bFromOverlap ? TEXT("OVERLAP") : TEXT("HIT");
@@ -167,19 +177,12 @@ void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveCompo
 		FString HitMsg = FString::Printf(TEXT("Projectile %s: %s (Component: %s)"), TriggerLabel, *OtherActor->GetName(), *ComponentName);
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, HitMsg);
 		UE_LOG(LogTemp, Warning, TEXT("%s"), *HitMsg);
-		
+
 		// Draw a point at impact/overlap location for 2 seconds
-		FVector ImpactPoint = GetActorLocation();
-		if (Hit)
-		{
-			ImpactPoint = Hit->ImpactPoint;
-		}
-		else if (OtherComp)
-		{
-			ImpactPoint = OtherComp->GetComponentLocation();
-		}
 		DrawDebugPoint(GetWorld(), ImpactPoint, 20.0f, FColor::Cyan, false, 2.0f);
 	}
+
+	PlayImpactFX(ImpactPoint);
 
 	// Payload Execution
 	if (PayloadInstance)

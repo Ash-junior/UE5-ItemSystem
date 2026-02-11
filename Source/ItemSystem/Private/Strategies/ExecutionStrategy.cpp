@@ -129,6 +129,36 @@ void AItemExecutionStrategy::FinishExecution()
     }
 }
 
+void AItemExecutionStrategy::PlayImpactFX(const FVector& Location)
+{
+    if (HasAuthority())
+    {
+        Multicast_PlayImpactFX(Location);
+    }
+    else
+    {
+        SpawnImpactFX(Location);
+    }
+}
+
+void AItemExecutionStrategy::Multicast_PlayImpactFX_Implementation(const FVector& Location)
+{
+    SpawnImpactFX(Location);
+}
+
+void AItemExecutionStrategy::SpawnImpactFX(const FVector& Location)
+{
+    if (ImpactSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, Location);
+    }
+
+    if (ImpactVFX)
+    {
+        UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ImpactVFX, Location);
+    }
+}
+
 bool AItemExecutionStrategy::ShouldAffectActor(AActor* OtherActor) const
 {
     if (!OtherActor)

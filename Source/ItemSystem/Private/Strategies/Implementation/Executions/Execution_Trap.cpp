@@ -93,6 +93,16 @@ void AExecution_Trap::TriggerTrap(AActor* OtherActor, UPrimitiveComponent* Other
 
 	bHasTriggered = true;
 
+	FVector ImpactPoint = GetActorLocation();
+	if (Hit)
+	{
+		ImpactPoint = Hit->ImpactPoint;
+	}
+	else if (OtherComp)
+	{
+		ImpactPoint = OtherComp->GetComponentLocation();
+	}
+
 	if (bShowDebugVisuals && GEngine)
 	{
 		const FString ComponentName = OtherComp ? OtherComp->GetName() : TEXT("None");
@@ -100,17 +110,10 @@ void AExecution_Trap::TriggerTrap(AActor* OtherActor, UPrimitiveComponent* Other
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, HitMsg);
 		UE_LOG(LogTemp, Warning, TEXT("%s"), *HitMsg);
 
-		FVector ImpactPoint = GetActorLocation();
-		if (Hit)
-		{
-			ImpactPoint = Hit->ImpactPoint;
-		}
-		else if (OtherComp)
-		{
-			ImpactPoint = OtherComp->GetComponentLocation();
-		}
 		DrawDebugPoint(GetWorld(), ImpactPoint, 20.0f, FColor::Cyan, false, 2.0f);
 	}
+
+	PlayImpactFX(ImpactPoint);
 
 	if (PayloadInstance)
 	{

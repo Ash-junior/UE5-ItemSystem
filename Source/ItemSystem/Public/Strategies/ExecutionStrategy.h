@@ -39,6 +39,14 @@ protected:
 	// Sound played when this actor spawns
 	UPROPERTY(EditDefaultsOnly, Category = "Effects")
 	USoundBase* SpawnSound;
+
+	// VFX played when the execution triggers (impact/overlap)
+	UPROPERTY(EditDefaultsOnly, Category = "Effects")
+	UNiagaraSystem* ImpactVFX;
+
+	// Sound played when the execution triggers (impact/overlap)
+	UPROPERTY(EditDefaultsOnly, Category = "Effects")
+	USoundBase* ImpactSound;
 	
 	// Instances created at runtime based on the ItemDefinition
 	UPROPERTY()
@@ -63,6 +71,14 @@ protected:
 	// Called when the execution is finished (e.g., hit target) to cleanup.
 	UFUNCTION(BlueprintCallable, Category = "Item System")
 	void FinishExecution();
+
+	// Play impact VFX/SFX (server triggers multicast)
+	void PlayImpactFX(const FVector& Location);
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayImpactFX(const FVector& Location);
+
+	void SpawnImpactFX(const FVector& Location);
 
 	// Helper: should the item affect the other actor (team/immunity/context)
 	bool ShouldAffectActor(AActor* OtherActor) const;
