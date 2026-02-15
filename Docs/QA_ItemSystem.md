@@ -189,3 +189,243 @@ This checklist validates the features implemented in the ItemSystem plugin.
 1. Effect appears on clients (replicated).
 2. Duration decreases and effect disappears at expiry.
 
+---
+
+## 11) SpawnPoint Pickup + Recipient Routing (Detailed)
+This section validates the new world spawn pickup behavior:
+- overlap-based pickup
+- configurable recipient routing (self, designated actor, tagged target)
+- optional ally/enemy routing via team relation
+- configurable consume/respawn flow
+
+### 11.1 Quick Vocabulary
+- `Overlap Actor`: the actor that enters the spawn trigger.
+- `Recipient`: the actor whose `InventoryComponent` receives the item.
+- `AssignedItem`: the item currently present on `AItemSpawnPoint`.
+
+### 11.2 One-Time Setup (Anyone Can Configure)
+1. Open a test level.
+2. Place one `AItemSpawnPoint` actor, name it `SP_Routing_Test`.
+3. Ensure your `GameState` has `ItemSystemManager`.
+4. Ensure all candidate pawns/characters:
+   1. have `InventoryComponent`
+   2. implement `ItemInterface` (`GetTeamID` and `HasGameplayTag` at minimum).
+5. Prepare at least 3 pawns:
+   1. `P1_Overlap` (the one who walks into the spawn)
+   2. `P2_Ally` (same team as `P1_Overlap`)
+   3. `P3_Enemy` (different team).
+6. Set Team IDs for tests:
+   1. `P1_Overlap = Team 1`
+   2. `P2_Ally = Team 1`
+   3. `P3_Enemy = Team 2`.
+7. Set gameplay tags for routing tests:
+   1. on `P1_Overlap`: optional `Routing.ReceiveSelf`
+   2. on `P2_Ally` and/or `P3_Enemy`: optional `Routing.Designated`.
+8. Enable verbose logs:
+   1. open console `~`
+   2. run `ItemSystem.QA 1`.
+
+### 11.3 SpawnPoint Property Reference
+Configure these properties on `SP_Routing_Test`:
+
+**Pickup**
+1. `GrantAmount`: amount granted when pickup succeeds.
+2. `bConsumeOnSuccessfulGrant`: consumes `AssignedItem` after a successful grant.
+3. `bRequestImmediateRespawnOnConsume`: asks manager for immediate refill when consumed.
+4. `RecipientPolicy`:
+   1. `OverlappingActorOnly`
+   2. `OverlapActorIfHasTagElseDesignated`
+   3. `DesignatedActorOnly`.
+
+**Recipient Rules**
+1. `OverlapReceivesItemTag`:
+   1. used only in `OverlapActorIfHasTagElseDesignated`
+   2. if overlap actor has this tag, overlap actor receives.
+2. `DesignatedRecipientActor`:
+   1. explicit actor recipient.
+3. `DesignatedRecipientTag`:
+   1. optional world lookup filter
+   2. nearest matching actor with inventory is selected.
+4. `DesignatedRecipientRelation`:
+   1. `Any`
+   2. `SameTeamAsOverlappingActor`
+   3. `EnemyOfOverlappingActor`.
+5. `bFallbackToOverlapIfDesignatedNotFound`:
+   1. if designated target cannot be resolved, fallback to overlap actor.
+
+### 11.4 Recommended Test Environment
+1. Run PIE with `3 players`.
+2. Net mode:
+   1. first pass: `Play As Listen Server`
+   2. second pass: `Play As Client` with dedicated server.
+3. Keep `SP_Routing_Test` visible and close to all three pawns.
+4. Ensure `SP_Routing_Test` currently has a valid `AssignedItem`.
+
+### 11.5 Baseline Test (Overlap Actor Receives)
+**Setup**
+1. `RecipientPolicy = OverlappingActorOnly`
+2. `GrantAmount = 1`
+3. `bConsumeOnSuccessfulGrant = true`
+4. `bRequestImmediateRespawnOnConsume = true`
+
+**Steps**
+1. Move `P1_Overlap` into `SP_Routing_Test`.
+2. Observe `P1_Overlap` inventory.
+3. Observe spawn item state after pickup.
+
+**Expected**
+1. `P1_Overlap` receives the item.
+2. Spawn item is consumed.
+3. If manager allows, spawn is immediately re-assigned.
+
+### 11.6 Tag Gate Test (Self If Tag, Else Designated)
+**Setup**
+1. `RecipientPolicy = OverlapActorIfHasTagElseDesignated`
+2. `OverlapReceivesItemTag = Routing.ReceiveSelf`
+3. `DesignatedRecipientActor = P2_Ally`
+4. `bFallbackToOverlapIfDesignatedNotFound = false`
+
+**Steps A (Tag Present)**
+1. Ensure `P1_Overlap` has `Routing.ReceiveSelf`.
+2. `P1_Overlap` enters the trigger.
+
+**Expected A**
+1. Recipient is `P1_Overlap`.
+
+**Steps B (Tag Missing)**
+1. Remove `Routing.ReceiveSelf` from `P1_Overlap`.
+2. `P1_Overlap` enters the trigger again.
+
+**Expected B**
+1. Recipient is `P2_Ally`.
+
+### 11.7 Designated-Only Test
+**Setup**
+1. `RecipientPolicy = DesignatedActorOnly`
+2. `DesignatedRecipientActor = P2_Ally`
+3. `bFallbackToOverlapIfDesignatedNotFound = false`
+
+**Steps**
+1. `P1_Overlap` enters trigger.
+
+**Expected**
+1. `P2_Ally` receives item.
+2. `P1_Overlap` does not receive item.
+
+### 11.8 Designated Lookup by Tag + Team Relation
+**Setup**
+1. `RecipientPolicy = DesignatedActorOnly`
+2. `DesignatedRecipientActor = None`
+3. `DesignatedRecipientTag = Routing.Designated`
+4. Set both `P2_Ally` and `P3_Enemy` with `Routing.Designated`.
+
+**Case A: Ally**
+1. `DesignatedRecipientRelation = SameTeamAsOverlappingActor`
+2. `P1_Overlap` enters trigger.
+
+**Expected A**
+1. Recipient is `P2_Ally`.
+
+**Case B: Enemy**
+1. `DesignatedRecipientRelation = EnemyOfOverlappingActor`
+2. `P1_Overlap` enters trigger.
+
+**Expected B**
+1. Recipient is `P3_Enemy`.
+
+### 11.9 Nearest Candidate Selection (Tag Lookup)
+**Setup**
+1. Keep `DesignatedRecipientActor = None`.
+2. Keep `DesignatedRecipientTag = Routing.Designated`.
+3. Place 2 valid candidates with same relation and same tag.
+
+**Steps**
+1. Move one candidate very close to spawn, keep one farther away.
+2. Trigger pickup with `P1_Overlap`.
+
+**Expected**
+1. Closest valid tagged actor receives item.
+
+### 11.10 Fallback Behavior
+**Case A: Fallback Enabled**
+1. Make designated lookup impossible (clear designated actor and remove designated tag from all actors).
+2. Set `bFallbackToOverlapIfDesignatedNotFound = true`.
+3. Trigger pickup with `P1_Overlap`.
+
+**Expected A**
+1. `P1_Overlap` receives item (if it has inventory).
+
+**Case B: Fallback Disabled**
+1. Same setup but `bFallbackToOverlapIfDesignatedNotFound = false`.
+2. Trigger pickup.
+
+**Expected B**
+1. No recipient receives item.
+2. Spawn item remains available.
+
+### 11.11 Grant Amount + Stack Validation
+**Setup**
+1. Set `GrantAmount = 3`.
+2. Use an item with known `MaxStack` (example `MaxStack = 5`).
+
+**Steps**
+1. Trigger pickup multiple times.
+
+**Expected**
+1. Each success grants `GrantAmount`.
+2. Inventory clamping respects `MaxStack`.
+
+### 11.12 Consume / No Consume Validation
+**Case A: Consume Enabled**
+1. `bConsumeOnSuccessfulGrant = true`.
+2. Trigger pickup.
+
+**Expected A**
+1. Spawn item is consumed.
+
+**Case B: Consume Disabled**
+1. `bConsumeOnSuccessfulGrant = false`.
+2. Trigger pickup.
+
+**Expected B**
+1. Spawn item remains assigned.
+2. Repeated overlaps can grant again (by design).
+
+### 11.13 Failure Path Validation
+1. Remove `InventoryComponent` from all possible recipients.
+2. Trigger pickup.
+3. Expected:
+   1. no grant
+   2. no consume
+   3. QA log contains: `no valid inventory recipient found`.
+
+### 11.14 Replication Validation
+1. Run with dedicated server and multiple clients.
+2. Trigger pickup from one client.
+3. Expected:
+   1. grant is server-authoritative
+   2. `AssignedItem` changes replicate to all clients
+   3. preview mesh updates correctly on all clients.
+
+### 11.15 Pass/Fail Checklist
+Mark as **PASS** only when all are true:
+1. Recipient selection matches configured policy every time.
+2. Tag gate behavior is correct (self vs designated).
+3. Team relation filter chooses ally/enemy correctly.
+4. Fallback behavior matches toggle.
+5. Grant amount and stack behavior are correct.
+6. Consume/respawn behavior matches configuration.
+7. Replication is consistent across server and clients.
+
+### 11.16 Common Misconfiguration Guide
+1. No one receives item:
+   1. check recipient has `InventoryComponent`
+   2. check `DesignatedRecipientTag` actually exists on target actor
+   3. check relation (`SameTeam` vs `Enemy`) is not excluding target.
+2. Wrong actor receives item:
+   1. re-check `RecipientPolicy`
+   2. verify `OverlapReceivesItemTag`
+   3. verify fallback toggle.
+3. Item disappears without expected respawn:
+   1. verify manager refresh mode and interval
+   2. verify `bRequestImmediateRespawnOnConsume`.
