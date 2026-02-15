@@ -3,12 +3,22 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
+#include "TimerManager.h"
 #include "Core/ItemSystemTypes.h"
 #include "ItemSystemManager.generated.h"
 
 class UItemDefinition;
 class AItemExecutionStrategy;
 class UItemDistributionPolicy;
+class AItemSpawnPoint;
+
+UENUM(BlueprintType)
+enum class EItemSpawnRefreshMode : uint8
+{
+    None UMETA(DisplayName = "None"),
+    TimedInfinite UMETA(DisplayName = "Timed (Infinite)"),
+    TimedLimitedResets UMETA(DisplayName = "Timed (Limited Resets)")
+};
 
 /**
  * The central manager for the Item System.
@@ -84,7 +94,49 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Item System")
     void ReleaseExecutionActor(AItemExecutionStrategy* Actor);
 
+    // --- World Spawn API ---
+
+    /**
+     * Registers a world spawn point controlled by this manager.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void RegisterSpawnPoint(AItemSpawnPoint* SpawnPoint);
+
+    /**
+     * Unregisters a world spawn point.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void UnregisterSpawnPoint(AItemSpawnPoint* SpawnPoint);
+
+    /**
+     * Re-assigns items on all registered spawn points.
+     * @param bConsumeResetBudget - If true, increments the limited reset counter.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void RefreshAllSpawnPoints(bool bConsumeResetBudget = false);
+
+    /**
+     * Re-assigns the item of a single spawn point.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void RefreshSpawnPoint(AItemSpawnPoint* SpawnPoint);
+
+    /**
+     * Notifies the manager that a spawn point item was consumed.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void NotifySpawnPointItemConsumed(AItemSpawnPoint* SpawnPoint, bool bRequestImmediateRespawn);
+
+    /**
+     * Returns remaining automatic resets (limited mode only).
+     * Returns -1 when the mode is not limited.
+     */
+    UFUNCTION(BlueprintPure, Category = "Item System|World Spawns")
+    int32 GetWorldSpawnResetsRemaining() const;
+
 protected:
+    virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
     
     // --- Internal Logic ---
 
@@ -96,4 +148,65 @@ protected:
 
     AItemExecutionStrategy* GetPooledActor(UClass* ExecClass);
     void AddToPool(AItemExecutionStrategy* Actor);
+
+    // --- World Spawn Internal Logic ---
+
+    void DiscoverSpawnPoints();
+    void CleanupInvalidSpawnPoints();
+    void StartWorldSpawnRefreshTimer();
+    void StopWorldSpawnRefreshTimer();
+
+    UFUNCTION()
+    void HandleWorldSpawnRefreshTick();
+
+    UItemDefinition* SelectItemForSpawnPoint(const AItemSpawnPoint* SpawnPoint) const;
+    void BuildWorldSpawnCandidateList(TArray<UItemDefinition*>& OutCandidates) const;
+
+protected:
+    // Enables world spawn point management.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
+    bool bEnableWorldSpawnManagement = true;
+
+    // Default policy used to assign items on spawn points.
+    UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "World Spawns")
+    TObjectPtr<UItemDistributionPolicy> WorldSpawnDistributionPolicy = nullptr;
+
+    // Optional global filter applied before per-spawn constraints.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
+    FGameplayTagQuery GlobalWorldSpawnFilter;
+
+    // Auto-discovers placed spawn points at BeginPlay (server).
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
+    bool bAutoDiscoverSpawnPoints = true;
+
+    // Refresh mode for spawn points.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
+    EItemSpawnRefreshMode WorldSpawnRefreshMode = EItemSpawnRefreshMode::None;
+
+    // Seconds between automatic refreshes.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns",
+        meta = (ClampMin = "0.1", EditCondition = "WorldSpawnRefreshMode != EItemSpawnRefreshMode::None", EditConditionHides))
+    float WorldSpawnRefreshInterval = 30.0f;
+
+    // Number of timed refreshes allowed in the session (limited mode).
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns",
+        meta = (ClampMin = "0", EditCondition = "WorldSpawnRefreshMode == EItemSpawnRefreshMode::TimedLimitedResets", EditConditionHides))
+    int32 WorldSpawnMaxResets = 0;
+
+    // If true, consuming a spawn point item instantly requests a new one.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
+    bool bRefreshOnConsume = true;
+
+    // Runtime list of all currently registered spawn points.
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<AItemSpawnPoint>> RegisteredSpawnPoints;
+
+    // Runtime counter used by limited reset mode.
+    UPROPERTY(Transient, BlueprintReadOnly, Category = "World Spawns")
+    int32 WorldSpawnResetsDone = 0;
+
+    UPROPERTY(Transient)
+    bool bWorldSpawnInitializationDone = false;
+
+    FTimerHandle WorldSpawnRefreshTimerHandle;
 };
