@@ -13,6 +13,7 @@ class AItemExecutionStrategy;
 class UItemDistributionPolicy;
 class AItemSpawnPoint;
 class UItemSpawnPointRoutingConfig;
+class UDataTable;
 
 UENUM(BlueprintType)
 enum class EItemSpawnRefreshMode : uint8
@@ -50,9 +51,8 @@ public:
 protected:
     // --- Data Registry ---
 
-    // List of all items available in the current game mode.
-    // Should be populated at Start (e.g., from the GameMode or a DataRegistry).
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Config")
+    // Runtime list of items loaded from ItemRegistryDataTable.
+    UPROPERTY(Transient, BlueprintReadOnly, Category = "Config")
     TArray<UItemDefinition*> GlobalItemRegistry;
 
     // Internal pool for actors (Class -> Array of Inactive Actors)
@@ -64,10 +64,16 @@ public:
     // --- Public API ---
 
     /**
-     * Registers a list of items into the system (called by GameMode).
+     * Registers a list of items into the runtime registry (manual override).
      */
     UFUNCTION(BlueprintCallable, Category = "Item System")
     void RegisterItems(const TArray<UItemDefinition*>& Items);
+
+    /**
+     * Rebuilds the runtime registry from ItemRegistryDataTable.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System")
+    void LoadItemRegistryFromDataTable();
 
     /**
      * Returns a random item that matches the tag query.
@@ -185,6 +191,10 @@ protected:
     void RefreshActivePickupRoutingSettingsFromConfig();
 
 protected:
+    // Authoritative source for available items in this match.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Config")
+    TObjectPtr<UDataTable> ItemRegistryDataTable = nullptr;
+
     // Enables world spawn point management.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
     bool bEnableWorldSpawnManagement = true;

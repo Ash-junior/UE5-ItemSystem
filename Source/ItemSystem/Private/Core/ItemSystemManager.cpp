@@ -1,5 +1,6 @@
 #include "Core/ItemSystemManager.h"
 #include "Data/ItemDefinition.h"
+#include "Data/ItemDefinitionTableRow.h"
 #include "Data/ItemSpawnPointRoutingConfig.h"
 #include "Strategies/ExecutionStrategy.h"
 #include "Distribution/ItemDistributionPolicy.h"
@@ -7,6 +8,7 @@
 #include "Core/ItemSystemLog.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/GameStateBase.h"
+#include "Engine/DataTable.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
@@ -37,9 +39,57 @@ void UItemSystemManager::RegisterItems(const TArray<UItemDefinition*>& Items)
     // Here we could build lookup maps for faster querying later
 }
 
+void UItemSystemManager::LoadItemRegistryFromDataTable()
+{
+    GlobalItemRegistry.Reset();
+
+    const AActor* OwnerActor = GetOwner();
+    const bool bIsAuthority = OwnerActor && OwnerActor->HasAuthority();
+
+    if (!ItemRegistryDataTable)
+    {
+        if (bIsAuthority)
+        {
+            UE_LOG(LogItemSystem, Warning, TEXT("ItemSystemManager %s has no ItemRegistryDataTable assigned."), *GetNameSafe(this));
+        }
+        return;
+    }
+
+    static const FString ContextString(TEXT("ItemSystemManager.LoadItemRegistryFromDataTable"));
+    TArray<FItemDefinitionTableRow*> Rows;
+    ItemRegistryDataTable->GetAllRows<FItemDefinitionTableRow>(ContextString, Rows);
+
+    GlobalItemRegistry.Reserve(Rows.Num());
+
+    for (const FItemDefinitionTableRow* Row : Rows)
+    {
+        if (!Row)
+        {
+            continue;
+        }
+
+        UItemDefinition* Item = Row->ItemDefinition.LoadSynchronous();
+        if (!Item)
+        {
+            continue;
+        }
+
+        GlobalItemRegistry.AddUnique(Item);
+    }
+
+    if (IsItemSystemQAEnabled())
+    {
+        UE_LOG(LogItemSystem, Log, TEXT("QA: Loaded %d item definitions from DataTable %s."),
+            GlobalItemRegistry.Num(),
+            *GetNameSafe(ItemRegistryDataTable));
+    }
+}
+
 void UItemSystemManager::BeginPlay()
 {
     Super::BeginPlay();
+
+    LoadItemRegistryFromDataTable();
 
     const AActor* OwnerActor = GetOwner();
     if (!OwnerActor || !OwnerActor->HasAuthority() || !bEnableWorldSpawnManagement)

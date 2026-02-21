@@ -14,8 +14,9 @@ This checklist validates the features implemented in the ItemSystem plugin.
 4. Ensure required components exist:
    1. Open your GameState BP (for example `GS_Item`).
    2. Add `ItemSystemManager` component if missing.
-   3. Open your Pawn BP (for example `BP_ItemCharacter`).
-   4. Add `InventoryComponent` if missing.
+   3. Assign `ItemRegistryDataTable` on the manager (rows must reference `UItemDefinition` assets).
+   4. Open your Pawn BP (for example `BP_ItemCharacter`).
+   5. Add `InventoryComponent` if missing.
 5. Ensure cheat manager is wired:
    1. Open your PlayerController BP.
    2. Set `Cheat Manager Class` to `ItemCheatManager`.
@@ -94,7 +95,7 @@ This checklist validates the features implemented in the ItemSystem plugin.
 **Setup**
 1. Create a BP derived from `UDistributionPolicy_TagQuery`.
 2. Set its `Query` to match a test tag (example `Item.Test.SkillShot`).
-3. Ensure `GlobalItemRegistry` has items with that tag.
+3. Ensure `ItemRegistryDataTable` contains rows pointing to items with that tag.
 
 **Steps**
 1. In any BP (GameState or Debug BP), call:
