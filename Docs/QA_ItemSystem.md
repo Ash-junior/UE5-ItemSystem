@@ -207,28 +207,33 @@ This section validates the new world spawn pickup behavior:
 1. Open a test level.
 2. Place one `AItemSpawnPoint` actor, name it `SP_Routing_Test`.
 3. Ensure your `GameState` has `ItemSystemManager`.
-4. Ensure all candidate pawns/characters:
+4. Create a `UItemSpawnPointRoutingConfig` Data Asset (example: `DA_SpawnRouting_Default`).
+5. Assign it on `GameState -> ItemSystemManager -> SpawnPointPickupRoutingConfig`.
+6. Configure pickup/routing fields in that Data Asset.
+7. If you change settings at runtime in PIE, call `ApplySpawnPointPickupRoutingConfig(true)` on the manager (server).
+8. Ensure all candidate pawns/characters:
    1. have `InventoryComponent`
    2. implement `ItemInterface` (`GetTeamID` and `HasGameplayTag` at minimum).
-5. Prepare at least 3 pawns:
+9. Prepare at least 3 pawns:
    1. `P1_Overlap` (the one who walks into the spawn)
    2. `P2_Ally` (same team as `P1_Overlap`)
    3. `P3_Enemy` (different team).
-6. Set Team IDs for tests:
+10. Set Team IDs for tests:
    1. `P1_Overlap = Team 1`
    2. `P2_Ally = Team 1`
    3. `P3_Enemy = Team 2`.
-7. Set gameplay tags for routing tests:
+11. Set gameplay tags for routing tests:
    1. on `P1_Overlap`: optional `Routing.ReceiveSelf`
    2. on `P2_Ally` and/or `P3_Enemy`: optional `Routing.Designated`.
-8. Enable verbose logs:
+12. Enable verbose logs:
    1. open console `~`
    2. run `ItemSystem.QA 1`.
 
-### 11.3 SpawnPoint Property Reference
-Configure these properties on `SP_Routing_Test`:
+### 11.3 Authoritative GameState Configuration Reference
+Configure these properties in the `UItemSpawnPointRoutingConfig` assigned to `GameState -> ItemSystemManager -> SpawnPointPickupRoutingConfig`:
 
 **Pickup**
+1. `PickupMethod`: pickup trigger mode (current implementation: `TriggerOverlap`).
 1. `GrantAmount`: amount granted when pickup succeeds.
 2. `bConsumeOnSuccessfulGrant`: consumes `AssignedItem` after a successful grant.
 3. `bRequestImmediateRespawnOnConsume`: asks manager for immediate refill when consumed.
@@ -242,7 +247,7 @@ Configure these properties on `SP_Routing_Test`:
    1. used only in `OverlapActorIfHasTagElseDesignated`
    2. if overlap actor has this tag, overlap actor receives.
 2. `DesignatedRecipientActor`:
-   1. explicit actor recipient.
+   1. explicit actor recipient (set at runtime from GameState via `SetSpawnPointPickupRoutingSettings`, because Data Assets should not reference level actors).
 3. `DesignatedRecipientTag`:
    1. optional world lookup filter
    2. nearest matching actor with inventory is selected.
@@ -263,6 +268,7 @@ Configure these properties on `SP_Routing_Test`:
 
 ### 11.5 Baseline Test (Overlap Actor Receives)
 **Setup**
+1. Edit the manager's `SpawnPointPickupRoutingConfig` Data Asset (or call `SetSpawnPointPickupRoutingSettings` in GameState).
 1. `RecipientPolicy = OverlappingActorOnly`
 2. `GrantAmount = 1`
 3. `bConsumeOnSuccessfulGrant = true`
@@ -280,6 +286,7 @@ Configure these properties on `SP_Routing_Test`:
 
 ### 11.6 Tag Gate Test (Self If Tag, Else Designated)
 **Setup**
+1. Update authoritative settings from GameState/manager.
 1. `RecipientPolicy = OverlapActorIfHasTagElseDesignated`
 2. `OverlapReceivesItemTag = Routing.ReceiveSelf`
 3. `DesignatedRecipientActor = P2_Ally`
@@ -301,6 +308,7 @@ Configure these properties on `SP_Routing_Test`:
 
 ### 11.7 Designated-Only Test
 **Setup**
+1. Update authoritative settings from GameState/manager.
 1. `RecipientPolicy = DesignatedActorOnly`
 2. `DesignatedRecipientActor = P2_Ally`
 3. `bFallbackToOverlapIfDesignatedNotFound = false`
@@ -314,6 +322,7 @@ Configure these properties on `SP_Routing_Test`:
 
 ### 11.8 Designated Lookup by Tag + Team Relation
 **Setup**
+1. Update authoritative settings from GameState/manager.
 1. `RecipientPolicy = DesignatedActorOnly`
 2. `DesignatedRecipientActor = None`
 3. `DesignatedRecipientTag = Routing.Designated`

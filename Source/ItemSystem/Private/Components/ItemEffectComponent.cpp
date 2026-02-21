@@ -1,5 +1,4 @@
 #include "Components/ItemEffectComponent.h"
-
 #include "Core/ItemSystemLog.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"

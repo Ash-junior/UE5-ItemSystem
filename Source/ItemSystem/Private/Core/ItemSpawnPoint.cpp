@@ -117,6 +117,17 @@ bool AItemSpawnPoint::MatchesAdditionalFilter(const UItemDefinition* Item) const
     return AdditionalItemFilter.Matches(Item->IdentityTags);
 }
 
+void AItemSpawnPoint::ApplyPickupRoutingSettings(const FItemSpawnPointPickupRoutingSettings& NewSettings)
+{
+    if (!HasAuthority())
+    {
+        return;
+    }
+
+    PickupRoutingSettings = NewSettings;
+    PickupRoutingSettings.GrantAmount = FMath::Max(1, PickupRoutingSettings.GrantAmount);
+}
+
 void AItemSpawnPoint::OnRep_AssignedItem()
 {
     RefreshVisual();
@@ -136,6 +147,11 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
         return;
     }
 
+    if (PickupRoutingSettings.PickupMethod != EItemSpawnPickupMethod::TriggerOverlap)
+    {
+        return;
+    }
+
     AActor* RecipientActor = ResolveRecipientActor(OtherActor);
     UInventoryComponent* RecipientInventory = FindRecipientInventory(RecipientActor);
     if (!RecipientInventory)
@@ -149,12 +165,12 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
         return;
     }
 
-    RecipientInventory->Server_GrantItem(AssignedItem, FMath::Max(1, GrantAmount));
+    RecipientInventory->Server_GrantItem(AssignedItem, FMath::Max(1, PickupRoutingSettings.GrantAmount));
     OnItemGranted.Broadcast(this, RecipientActor, AssignedItem);
 
-    if (bConsumeOnSuccessfulGrant)
+    if (PickupRoutingSettings.bConsumeOnSuccessfulGrant)
     {
-        ConsumeAssignedItem(bRequestImmediateRespawnOnConsume);
+        ConsumeAssignedItem(PickupRoutingSettings.bRequestImmediateRespawnOnConsume);
     }
 }
 
@@ -170,13 +186,14 @@ AActor* AItemSpawnPoint::ResolveRecipientActor(AActor* OverlapActor) const
         return FindRecipientInventory(OverlapActor) ? OverlapActor : nullptr;
     };
 
-    switch (RecipientPolicy)
+    switch (PickupRoutingSettings.RecipientPolicy)
     {
     case EItemSpawnRecipientPolicy::OverlappingActorOnly:
         return ResolveOverlapActor();
 
     case EItemSpawnRecipientPolicy::OverlapActorIfHasTagElseDesignated:
-        if (!OverlapReceivesItemTag.IsValid() || ActorHasGameplayTagForRouting(OverlapActor, OverlapReceivesItemTag))
+        if (!PickupRoutingSettings.OverlapReceivesItemTag.IsValid()
+            || ActorHasGameplayTagForRouting(OverlapActor, PickupRoutingSettings.OverlapReceivesItemTag))
         {
             if (AActor* OverlapRecipient = ResolveOverlapActor())
             {
@@ -189,7 +206,7 @@ AActor* AItemSpawnPoint::ResolveRecipientActor(AActor* OverlapActor) const
             return Designated;
         }
 
-        return bFallbackToOverlapIfDesignatedNotFound ? ResolveOverlapActor() : nullptr;
+        return PickupRoutingSettings.bFallbackToOverlapIfDesignatedNotFound ? ResolveOverlapActor() : nullptr;
 
     case EItemSpawnRecipientPolicy::DesignatedActorOnly:
         if (AActor* Designated = ResolveDesignatedRecipient(OverlapActor))
@@ -197,7 +214,7 @@ AActor* AItemSpawnPoint::ResolveRecipientActor(AActor* OverlapActor) const
             return Designated;
         }
 
-        return bFallbackToOverlapIfDesignatedNotFound ? ResolveOverlapActor() : nullptr;
+        return PickupRoutingSettings.bFallbackToOverlapIfDesignatedNotFound ? ResolveOverlapActor() : nullptr;
 
     default:
         return ResolveOverlapActor();
@@ -206,14 +223,16 @@ AActor* AItemSpawnPoint::ResolveRecipientActor(AActor* OverlapActor) const
 
 AActor* AItemSpawnPoint::ResolveDesignatedRecipient(AActor* OverlapActor) const
 {
-    if (DesignatedRecipientActor)
+    if (PickupRoutingSettings.DesignatedRecipientActor)
     {
-        const bool bTagOk = !DesignatedRecipientTag.IsValid()
-            || ActorHasGameplayTagForRouting(DesignatedRecipientActor, DesignatedRecipientTag);
-        const bool bRelationOk = DoesActorMatchRecipientRelation(OverlapActor, DesignatedRecipientActor);
-        if (bTagOk && bRelationOk && FindRecipientInventory(DesignatedRecipientActor))
+        const bool bTagOk = !PickupRoutingSettings.DesignatedRecipientTag.IsValid()
+            || ActorHasGameplayTagForRouting(
+                PickupRoutingSettings.DesignatedRecipientActor,
+                PickupRoutingSettings.DesignatedRecipientTag);
+        const bool bRelationOk = DoesActorMatchRecipientRelation(OverlapActor, PickupRoutingSettings.DesignatedRecipientActor);
+        if (bTagOk && bRelationOk && FindRecipientInventory(PickupRoutingSettings.DesignatedRecipientActor))
         {
-            return DesignatedRecipientActor;
+            return PickupRoutingSettings.DesignatedRecipientActor;
         }
     }
 
@@ -222,7 +241,7 @@ AActor* AItemSpawnPoint::ResolveDesignatedRecipient(AActor* OverlapActor) const
 
 AActor* AItemSpawnPoint::FindTaggedRecipientInWorld(AActor* OverlapActor) const
 {
-    if (!DesignatedRecipientTag.IsValid())
+    if (!PickupRoutingSettings.DesignatedRecipientTag.IsValid())
     {
         return nullptr;
     }
@@ -244,7 +263,7 @@ AActor* AItemSpawnPoint::FindTaggedRecipientInWorld(AActor* OverlapActor) const
             continue;
         }
 
-        if (!ActorHasGameplayTagForRouting(Candidate, DesignatedRecipientTag))
+        if (!ActorHasGameplayTagForRouting(Candidate, PickupRoutingSettings.DesignatedRecipientTag))
         {
             continue;
         }
@@ -277,7 +296,7 @@ bool AItemSpawnPoint::DoesActorMatchRecipientRelation(AActor* OverlapActor, AAct
         return false;
     }
 
-    if (DesignatedRecipientRelation == EItemSpawnRecipientRelation::Any)
+    if (PickupRoutingSettings.DesignatedRecipientRelation == EItemSpawnRecipientRelation::Any)
     {
         return true;
     }
@@ -290,12 +309,12 @@ bool AItemSpawnPoint::DoesActorMatchRecipientRelation(AActor* OverlapActor, AAct
     const int32 OverlapTeam = IItemInterface::Execute_GetTeamID(OverlapActor);
     const int32 CandidateTeam = IItemInterface::Execute_GetTeamID(CandidateActor);
 
-    if (DesignatedRecipientRelation == EItemSpawnRecipientRelation::SameTeamAsOverlappingActor)
+    if (PickupRoutingSettings.DesignatedRecipientRelation == EItemSpawnRecipientRelation::SameTeamAsOverlappingActor)
     {
         return OverlapTeam == CandidateTeam;
     }
 
-    if (DesignatedRecipientRelation == EItemSpawnRecipientRelation::EnemyOfOverlappingActor)
+    if (PickupRoutingSettings.DesignatedRecipientRelation == EItemSpawnRecipientRelation::EnemyOfOverlappingActor)
     {
         return OverlapTeam != CandidateTeam;
     }

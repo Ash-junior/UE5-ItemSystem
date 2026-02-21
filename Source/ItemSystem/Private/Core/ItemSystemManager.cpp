@@ -1,5 +1,6 @@
 #include "Core/ItemSystemManager.h"
 #include "Data/ItemDefinition.h"
+#include "Data/ItemSpawnPointRoutingConfig.h"
 #include "Strategies/ExecutionStrategy.h"
 #include "Distribution/ItemDistributionPolicy.h"
 #include "Core/ItemSpawnPoint.h"
@@ -13,6 +14,7 @@
 UItemSystemManager::UItemSystemManager()
 {
     PrimaryComponentTick.bCanEverTick = false;
+    ActiveSpawnPointPickupRoutingSettings = SpawnPointPickupRoutingFallbackSettings;
 }
 
 UItemSystemManager* UItemSystemManager::Get(const UObject* WorldContextObject)
@@ -45,10 +47,14 @@ void UItemSystemManager::BeginPlay()
         return;
     }
 
+    RefreshActivePickupRoutingSettingsFromConfig();
+
     if (bAutoDiscoverSpawnPoints)
     {
         DiscoverSpawnPoints();
     }
+
+    ApplyActivePickupRoutingSettingsToRegisteredSpawnPoints();
 
     // Initial assignment does not consume limited reset budget.
     RefreshAllSpawnPoints(false);
@@ -220,6 +226,7 @@ void UItemSystemManager::RegisterSpawnPoint(AItemSpawnPoint* SpawnPoint)
     }
 
     RegisteredSpawnPoints.AddUnique(SpawnPoint);
+    ApplyPickupRoutingSettingsToSpawnPoint(SpawnPoint);
 
     if (bWorldSpawnInitializationDone && !SpawnPoint->HasAssignedItem())
     {
@@ -297,6 +304,46 @@ int32 UItemSystemManager::GetWorldSpawnResetsRemaining() const
     return FMath::Max(0, WorldSpawnMaxResets - WorldSpawnResetsDone);
 }
 
+void UItemSystemManager::ApplySpawnPointPickupRoutingConfig(bool bPropagateToRegisteredSpawnPoints)
+{
+    const AActor* OwnerActor = GetOwner();
+    if (!OwnerActor || !OwnerActor->HasAuthority())
+    {
+        return;
+    }
+
+    RefreshActivePickupRoutingSettingsFromConfig();
+
+    if (bPropagateToRegisteredSpawnPoints)
+    {
+        ApplyActivePickupRoutingSettingsToRegisteredSpawnPoints();
+    }
+}
+
+void UItemSystemManager::SetSpawnPointPickupRoutingSettings(
+    const FItemSpawnPointPickupRoutingSettings& NewSettings,
+    bool bPropagateToRegisteredSpawnPoints)
+{
+    const AActor* OwnerActor = GetOwner();
+    if (!OwnerActor || !OwnerActor->HasAuthority())
+    {
+        return;
+    }
+
+    ActiveSpawnPointPickupRoutingSettings = NewSettings;
+    ActiveSpawnPointPickupRoutingSettings.GrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.GrantAmount);
+
+    if (bPropagateToRegisteredSpawnPoints)
+    {
+        ApplyActivePickupRoutingSettingsToRegisteredSpawnPoints();
+    }
+}
+
+FItemSpawnPointPickupRoutingSettings UItemSystemManager::GetSpawnPointPickupRoutingSettings() const
+{
+    return ActiveSpawnPointPickupRoutingSettings;
+}
+
 void UItemSystemManager::DiscoverSpawnPoints()
 {
     UWorld* World = GetWorld();
@@ -317,6 +364,38 @@ void UItemSystemManager::CleanupInvalidSpawnPoints()
     {
         return !IsValid(SpawnPoint);
     });
+}
+
+void UItemSystemManager::ApplyPickupRoutingSettingsToSpawnPoint(AItemSpawnPoint* SpawnPoint) const
+{
+    if (!SpawnPoint)
+    {
+        return;
+    }
+
+    SpawnPoint->ApplyPickupRoutingSettings(ActiveSpawnPointPickupRoutingSettings);
+}
+
+void UItemSystemManager::ApplyActivePickupRoutingSettingsToRegisteredSpawnPoints()
+{
+    CleanupInvalidSpawnPoints();
+
+    for (AItemSpawnPoint* SpawnPoint : RegisteredSpawnPoints)
+    {
+        ApplyPickupRoutingSettingsToSpawnPoint(SpawnPoint);
+    }
+}
+
+void UItemSystemManager::RefreshActivePickupRoutingSettingsFromConfig()
+{
+    ActiveSpawnPointPickupRoutingSettings = SpawnPointPickupRoutingFallbackSettings;
+
+    if (SpawnPointPickupRoutingConfig)
+    {
+        ActiveSpawnPointPickupRoutingSettings = SpawnPointPickupRoutingConfig->Settings;
+    }
+
+    ActiveSpawnPointPickupRoutingSettings.GrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.GrantAmount);
 }
 
 void UItemSystemManager::StartWorldSpawnRefreshTimer()

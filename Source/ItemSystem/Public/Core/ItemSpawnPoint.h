@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
+#include "Core/ItemSpawnPointRoutingTypes.h"
 #include "ItemSpawnPoint.generated.h"
 
 class UInventoryComponent;
@@ -20,22 +21,6 @@ enum class EItemSpawnConstraintMode : uint8
 {
     PreferFilteredThenFallback UMETA(DisplayName = "Prefer Filtered, Fallback"),
     StrictFilteredOnly UMETA(DisplayName = "Strict Filtered Only")
-};
-
-UENUM(BlueprintType)
-enum class EItemSpawnRecipientPolicy : uint8
-{
-    OverlappingActorOnly UMETA(DisplayName = "Overlapping Actor Only"),
-    OverlapActorIfHasTagElseDesignated UMETA(DisplayName = "Overlap If Tagged, Else Designated"),
-    DesignatedActorOnly UMETA(DisplayName = "Designated Actor Only")
-};
-
-UENUM(BlueprintType)
-enum class EItemSpawnRecipientRelation : uint8
-{
-    Any UMETA(DisplayName = "Any"),
-    SameTeamAsOverlappingActor UMETA(DisplayName = "Same Team As Overlap"),
-    EnemyOfOverlappingActor UMETA(DisplayName = "Enemy Of Overlap")
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSpawnPointItemChanged, AItemSpawnPoint*, SpawnPoint, UItemDefinition*, NewItem);
@@ -78,6 +63,12 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Item Spawn")
     bool MatchesAdditionalFilter(const UItemDefinition* Item) const;
+
+    UFUNCTION(BlueprintPure, Category = "Item Spawn|Pickup Routing")
+    FItemSpawnPointPickupRoutingSettings GetPickupRoutingSettings() const { return PickupRoutingSettings; }
+
+    UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item Spawn|Pickup Routing")
+    void ApplyPickupRoutingSettings(const FItemSpawnPointPickupRoutingSettings& NewSettings);
 
     UPROPERTY(BlueprintAssignable, Category = "Item Spawn|Events")
     FOnSpawnPointItemChanged OnAssignedItemChanged;
@@ -135,43 +126,9 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Visuals")
     bool bHidePreviewWhenNoItem = true;
 
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup", meta = (ClampMin = "1"))
-    int32 GrantAmount = 1;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup")
-    bool bConsumeOnSuccessfulGrant = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup", meta = (EditCondition = "bConsumeOnSuccessfulGrant", EditConditionHides))
-    bool bRequestImmediateRespawnOnConsume = true;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup")
-    EItemSpawnRecipientPolicy RecipientPolicy = EItemSpawnRecipientPolicy::OverlappingActorOnly;
-
-    // For OverlapActorIfHasTagElseDesignated:
-    // if the overlapping actor has this tag, it receives the item.
-    // If not set, overlapping actor is considered valid by default.
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Recipient Rules",
-        meta = (EditCondition = "RecipientPolicy == EItemSpawnRecipientPolicy::OverlapActorIfHasTagElseDesignated", EditConditionHides))
-    FGameplayTag OverlapReceivesItemTag;
-
-    // Optional explicit designated recipient.
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Recipient Rules",
-        meta = (EditCondition = "RecipientPolicy != EItemSpawnRecipientPolicy::OverlappingActorOnly", EditConditionHides))
-    TObjectPtr<AActor> DesignatedRecipientActor = nullptr;
-
-    // Optional tag used to search designated recipients in world.
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Recipient Rules",
-        meta = (EditCondition = "RecipientPolicy != EItemSpawnRecipientPolicy::OverlappingActorOnly", EditConditionHides))
-    FGameplayTag DesignatedRecipientTag;
-
-    // Team relation filter applied when selecting designated recipients.
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Recipient Rules",
-        meta = (EditCondition = "RecipientPolicy != EItemSpawnRecipientPolicy::OverlappingActorOnly", EditConditionHides))
-    EItemSpawnRecipientRelation DesignatedRecipientRelation = EItemSpawnRecipientRelation::Any;
-
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Recipient Rules",
-        meta = (EditCondition = "RecipientPolicy != EItemSpawnRecipientPolicy::OverlappingActorOnly", EditConditionHides))
-    bool bFallbackToOverlapIfDesignatedNotFound = true;
+    // Runtime settings propagated from the authoritative GameState manager.
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Item Spawn|Pickup Routing")
+    FItemSpawnPointPickupRoutingSettings PickupRoutingSettings;
 
     UPROPERTY(ReplicatedUsing = OnRep_AssignedItem, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<UItemDefinition> AssignedItem = nullptr;

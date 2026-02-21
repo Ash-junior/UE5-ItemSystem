@@ -5,12 +5,14 @@
 #include "GameplayTagContainer.h"
 #include "TimerManager.h"
 #include "Core/ItemSystemTypes.h"
+#include "Core/ItemSpawnPointRoutingTypes.h"
 #include "ItemSystemManager.generated.h"
 
 class UItemDefinition;
 class AItemExecutionStrategy;
 class UItemDistributionPolicy;
 class AItemSpawnPoint;
+class UItemSpawnPointRoutingConfig;
 
 UENUM(BlueprintType)
 enum class EItemSpawnRefreshMode : uint8
@@ -134,6 +136,23 @@ public:
     UFUNCTION(BlueprintPure, Category = "Item System|World Spawns")
     int32 GetWorldSpawnResetsRemaining() const;
 
+    /**
+     * Loads pickup/routing settings from the configured data asset and optionally propagates them.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void ApplySpawnPointPickupRoutingConfig(bool bPropagateToRegisteredSpawnPoints = true);
+
+    /**
+     * Overrides pickup/routing settings at runtime and optionally propagates them.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item System|World Spawns")
+    void SetSpawnPointPickupRoutingSettings(
+        const FItemSpawnPointPickupRoutingSettings& NewSettings,
+        bool bPropagateToRegisteredSpawnPoints = true);
+
+    UFUNCTION(BlueprintPure, Category = "Item System|World Spawns")
+    FItemSpawnPointPickupRoutingSettings GetSpawnPointPickupRoutingSettings() const;
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -161,6 +180,9 @@ protected:
 
     UItemDefinition* SelectItemForSpawnPoint(const AItemSpawnPoint* SpawnPoint) const;
     void BuildWorldSpawnCandidateList(TArray<UItemDefinition*>& OutCandidates) const;
+    void ApplyPickupRoutingSettingsToSpawnPoint(AItemSpawnPoint* SpawnPoint) const;
+    void ApplyActivePickupRoutingSettingsToRegisteredSpawnPoints();
+    void RefreshActivePickupRoutingSettingsFromConfig();
 
 protected:
     // Enables world spawn point management.
@@ -197,6 +219,14 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns")
     bool bRefreshOnConsume = true;
 
+    // Data asset read at startup by the authoritative manager (owned by GameState).
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns|Pickup Routing")
+    TObjectPtr<UItemSpawnPointRoutingConfig> SpawnPointPickupRoutingConfig = nullptr;
+
+    // Fallback settings used when no data asset is assigned.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "World Spawns|Pickup Routing")
+    FItemSpawnPointPickupRoutingSettings SpawnPointPickupRoutingFallbackSettings;
+
     // Runtime list of all currently registered spawn points.
     UPROPERTY(Transient)
     TArray<TObjectPtr<AItemSpawnPoint>> RegisteredSpawnPoints;
@@ -207,6 +237,9 @@ protected:
 
     UPROPERTY(Transient)
     bool bWorldSpawnInitializationDone = false;
+
+    UPROPERTY(Transient)
+    FItemSpawnPointPickupRoutingSettings ActiveSpawnPointPickupRoutingSettings;
 
     FTimerHandle WorldSpawnRefreshTimerHandle;
 };
