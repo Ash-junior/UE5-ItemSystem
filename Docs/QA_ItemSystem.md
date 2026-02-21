@@ -235,13 +235,23 @@ Configure these properties in the `UItemSpawnPointRoutingConfig` assigned to `Ga
 
 **Pickup**
 1. `PickupMethod`: pickup trigger mode (current implementation: `TriggerOverlap`).
-1. `GrantAmount`: amount granted when pickup succeeds.
-2. `bConsumeOnSuccessfulGrant`: consumes `AssignedItem` after a successful grant.
-3. `bRequestImmediateRespawnOnConsume`: asks manager for immediate refill when consumed.
-4. `RecipientPolicy`:
+2. `bOverrideItemGrantAmount`: if true, manager config overrides item default pickup quantity.
+3. `OverrideGrantAmount`: override value used only when `bOverrideItemGrantAmount = true`.
+4. `bConsumeOnSuccessfulGrant`: consumes `AssignedItem` after a successful grant.
+5. `bRequestImmediateRespawnOnConsume`: asks manager for immediate refill when consumed.
+6. `RecipientPolicy`:
    1. `OverlappingActorOnly`
    2. `OverlapActorIfHasTagElseDesignated`
    3. `DesignatedActorOnly`.
+
+**Item Data Asset (Primary Quantity Source)**
+1. In each `UItemDefinition`, set `PickupGrantAmount`.
+2. This is the default granted amount when pickup succeeds.
+3. Manager and SpawnPoint overrides are optional and only applied when explicitly enabled.
+
+**SpawnPoint Local Quantity Override (Optional, Highest Priority)**
+1. `bUseLocalGrantAmountOverride`: if true, this specific spawn point overrides both item default and manager config override.
+2. `LocalGrantAmountOverride`: local override amount.
 
 **Recipient Rules**
 1. `OverlapReceivesItemTag`:
@@ -270,10 +280,12 @@ Configure these properties in the `UItemSpawnPointRoutingConfig` assigned to `Ga
 ### 11.5 Baseline Test (Overlap Actor Receives)
 **Setup**
 1. Edit the manager's `SpawnPointPickupRoutingConfig` Data Asset (or call `SetSpawnPointPickupRoutingSettings` in GameState).
-1. `RecipientPolicy = OverlappingActorOnly`
-2. `GrantAmount = 1`
-3. `bConsumeOnSuccessfulGrant = true`
-4. `bRequestImmediateRespawnOnConsume = true`
+2. On tested item definition, set `PickupGrantAmount = 1`.
+3. In manager config, set `bOverrideItemGrantAmount = false`.
+4. On `SP_Routing_Test`, set `bUseLocalGrantAmountOverride = false`.
+5. `RecipientPolicy = OverlappingActorOnly`
+6. `bConsumeOnSuccessfulGrant = true`
+7. `bRequestImmediateRespawnOnConsume = true`
 
 **Steps**
 1. Move `P1_Overlap` into `SP_Routing_Test`.
@@ -373,17 +385,27 @@ Configure these properties in the `UItemSpawnPointRoutingConfig` assigned to `Ga
 1. No recipient receives item.
 2. Spawn item remains available.
 
-### 11.11 Grant Amount + Stack Validation
+### 11.11 Grant Amount Priority + Stack Validation
 **Setup**
-1. Set `GrantAmount = 3`.
-2. Use an item with known `MaxStack` (example `MaxStack = 5`).
+1. Use an item with known `MaxStack` (example `MaxStack = 5`).
+2. Set `PickupGrantAmount = 3` on the item definition.
+3. Ensure manager config `bOverrideItemGrantAmount = false`.
+4. Ensure spawn point `bUseLocalGrantAmountOverride = false`.
 
 **Steps**
-1. Trigger pickup multiple times.
+1. Trigger pickup once.
+2. Enable manager override: `bOverrideItemGrantAmount = true`, `OverrideGrantAmount = 2`.
+3. Trigger pickup once.
+4. Disable manager override and enable spawnpoint local override: `bUseLocalGrantAmountOverride = true`, `LocalGrantAmountOverride = 4`.
+5. Trigger pickup once.
+6. Repeat pickups to hit stack cap.
 
 **Expected**
-1. Each success grants `GrantAmount`.
-2. Inventory clamping respects `MaxStack`.
+1. First pickup grants item definition amount (`3`).
+2. Second pickup grants manager override amount (`2`).
+3. Third pickup grants spawn point local override amount (`4`).
+4. Priority is: SpawnPoint local override > manager routing config override > item definition `PickupGrantAmount`.
+5. Inventory clamping respects `MaxStack`.
 
 ### 11.12 Consume / No Consume Validation
 **Case A: Consume Enabled**

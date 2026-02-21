@@ -9,6 +9,8 @@
 #include "Components/SceneComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/BillboardComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 
@@ -34,6 +36,31 @@ AItemSpawnPoint::AItemSpawnPoint()
     PickupTrigger->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
     PickupTrigger->SetGenerateOverlapEvents(true);
     PickupTrigger->OnComponentBeginOverlap.AddDynamic(this, &AItemSpawnPoint::HandlePickupTriggerBeginOverlap);
+
+#if WITH_EDITORONLY_DATA
+    EditorBillboard = CreateEditorOnlyDefaultSubobject<UBillboardComponent>(TEXT("EditorBillboard"));
+    if (EditorBillboard)
+    {
+        EditorBillboard->SetupAttachment(SceneRoot);
+        EditorBillboard->SetHiddenInGame(true);
+        EditorBillboard->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        EditorBillboard->SetIsVisualizationComponent(true);
+        EditorBillboard->SetRelativeLocation(FVector(0.0f, 0.0f, 60.0f));
+    }
+
+    EditorLabel = CreateEditorOnlyDefaultSubobject<UTextRenderComponent>(TEXT("EditorLabel"));
+    if (EditorLabel)
+    {
+        EditorLabel->SetupAttachment(SceneRoot);
+        EditorLabel->SetHiddenInGame(true);
+        EditorLabel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        EditorLabel->SetHorizontalAlignment(EHorizTextAligment::EHTA_Center);
+        EditorLabel->SetWorldSize(24.0f);
+        EditorLabel->SetTextRenderColor(FColor(255, 230, 80));
+        EditorLabel->SetRelativeLocation(FVector(0.0f, 0.0f, 95.0f));
+        EditorLabel->SetText(FText::FromString(TEXT("Item Spawn")));
+    }
+#endif
 }
 
 void AItemSpawnPoint::BeginPlay()
@@ -62,6 +89,18 @@ void AItemSpawnPoint::EndPlay(const EEndPlayReason::Type EndPlayReason)
     }
 
     Super::EndPlay(EndPlayReason);
+}
+
+void AItemSpawnPoint::OnConstruction(const FTransform& Transform)
+{
+    Super::OnConstruction(Transform);
+
+#if WITH_EDITORONLY_DATA
+    if (EditorLabel)
+    {
+        EditorLabel->SetText(FText::FromString(GetActorNameOrLabel()));
+    }
+#endif
 }
 
 void AItemSpawnPoint::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -125,7 +164,7 @@ void AItemSpawnPoint::ApplyPickupRoutingSettings(const FItemSpawnPointPickupRout
     }
 
     PickupRoutingSettings = NewSettings;
-    PickupRoutingSettings.GrantAmount = FMath::Max(1, PickupRoutingSettings.GrantAmount);
+    PickupRoutingSettings.OverrideGrantAmount = FMath::Max(1, PickupRoutingSettings.OverrideGrantAmount);
 }
 
 void AItemSpawnPoint::OnRep_AssignedItem()
@@ -165,7 +204,7 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
         return;
     }
 
-    RecipientInventory->Server_GrantItem(AssignedItem, FMath::Max(1, PickupRoutingSettings.GrantAmount));
+    RecipientInventory->Server_GrantItem(AssignedItem, ResolvePickupGrantAmount());
     OnItemGranted.Broadcast(this, RecipientActor, AssignedItem);
 
     if (PickupRoutingSettings.bConsumeOnSuccessfulGrant)
@@ -219,6 +258,28 @@ AActor* AItemSpawnPoint::ResolveRecipientActor(AActor* OverlapActor) const
     default:
         return ResolveOverlapActor();
     }
+}
+
+int32 AItemSpawnPoint::ResolvePickupGrantAmount() const
+{
+    int32 ResolvedAmount = 1;
+
+    if (AssignedItem)
+    {
+        ResolvedAmount = FMath::Max(1, AssignedItem->PickupGrantAmount);
+    }
+
+    if (PickupRoutingSettings.bOverrideItemGrantAmount)
+    {
+        ResolvedAmount = FMath::Max(1, PickupRoutingSettings.OverrideGrantAmount);
+    }
+
+    if (bUseLocalGrantAmountOverride)
+    {
+        ResolvedAmount = FMath::Max(1, LocalGrantAmountOverride);
+    }
+
+    return ResolvedAmount;
 }
 
 AActor* AItemSpawnPoint::ResolveDesignatedRecipient(AActor* OverlapActor) const

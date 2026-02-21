@@ -37,8 +37,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
     EItemSpawnPickupMethod PickupMethod = EItemSpawnPickupMethod::TriggerOverlap;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup", meta = (ClampMin = "1"))
-    int32 GrantAmount = 1;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
+    bool bOverrideItemGrantAmount = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup",
+        meta = (ClampMin = "1", EditCondition = "bOverrideItemGrantAmount", EditConditionHides))
+    int32 OverrideGrantAmount = 1;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pickup")
     bool bConsumeOnSuccessfulGrant = true;

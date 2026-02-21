@@ -381,7 +381,7 @@ void UItemSystemManager::SetSpawnPointPickupRoutingSettings(
     }
 
     ActiveSpawnPointPickupRoutingSettings = NewSettings;
-    ActiveSpawnPointPickupRoutingSettings.GrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.GrantAmount);
+    ActiveSpawnPointPickupRoutingSettings.OverrideGrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.OverrideGrantAmount);
 
     if (bPropagateToRegisteredSpawnPoints)
     {
@@ -445,7 +445,7 @@ void UItemSystemManager::RefreshActivePickupRoutingSettingsFromConfig()
         ActiveSpawnPointPickupRoutingSettings = SpawnPointPickupRoutingConfig->Settings;
     }
 
-    ActiveSpawnPointPickupRoutingSettings.GrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.GrantAmount);
+    ActiveSpawnPointPickupRoutingSettings.OverrideGrantAmount = FMath::Max(1, ActiveSpawnPointPickupRoutingSettings.OverrideGrantAmount);
 }
 
 void UItemSystemManager::StartWorldSpawnRefreshTimer()

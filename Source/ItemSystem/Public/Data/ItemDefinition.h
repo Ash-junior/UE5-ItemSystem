@@ -48,6 +48,10 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Rules", meta = (ClampMin = "0.0"))
     float Cooldown = 0.0f;
 
+    // Default amount granted to inventory when this item is picked up from a spawn point.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Pickup", meta = (ClampMin = "1"))
+    int32 PickupGrantAmount = 1;
+
     // Where to attach the item model on the vehicle/character (e.g., Socket.Mount.Roof)
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Visuals")
     FGameplayTag AttachSocketTag;

@@ -11,6 +11,8 @@ class UPrimitiveComponent;
 class UStaticMeshComponent;
 class USceneComponent;
 class USphereComponent;
+class UBillboardComponent;
+class UTextRenderComponent;
 class UItemDefinition;
 class UItemDistributionPolicy;
 class AItemSpawnPoint;
@@ -79,6 +81,7 @@ public:
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void OnConstruction(const FTransform& Transform) override;
 
     UFUNCTION()
     void OnRep_AssignedItem();
@@ -95,6 +98,7 @@ protected:
     AActor* ResolveRecipientActor(AActor* OverlapActor) const;
     AActor* ResolveDesignatedRecipient(AActor* OverlapActor) const;
     AActor* FindTaggedRecipientInWorld(AActor* OverlapActor) const;
+    int32 ResolvePickupGrantAmount() const;
     bool DoesActorMatchRecipientRelation(AActor* OverlapActor, AActor* CandidateActor) const;
     bool ActorHasGameplayTagForRouting(AActor* Actor, const FGameplayTag& Tag) const;
     UInventoryComponent* FindRecipientInventory(AActor* CandidateActor) const;
@@ -111,6 +115,15 @@ protected:
     // Trigger used to detect pickup on overlap.
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<USphereComponent> PickupTrigger = nullptr;
+
+#if WITH_EDITORONLY_DATA
+    // Editor-only visual helpers to make spawn points easy to identify/select in the level.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn|Editor")
+    TObjectPtr<UBillboardComponent> EditorBillboard = nullptr;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn|Editor")
+    TObjectPtr<UTextRenderComponent> EditorLabel = nullptr;
+#endif
 
     // Additional per-spawn filter applied by the manager before assignment.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Rules")
@@ -129,6 +142,14 @@ protected:
     // Runtime settings propagated from the authoritative GameState manager.
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Item Spawn|Pickup Routing")
     FItemSpawnPointPickupRoutingSettings PickupRoutingSettings;
+
+    // Local optional override. If enabled, this value takes priority over item default and manager routing config.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup Routing|Local Override")
+    bool bUseLocalGrantAmountOverride = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup Routing|Local Override",
+        meta = (ClampMin = "1", EditCondition = "bUseLocalGrantAmountOverride", EditConditionHides))
+    int32 LocalGrantAmountOverride = 1;
 
     UPROPERTY(ReplicatedUsing = OnRep_AssignedItem, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<UItemDefinition> AssignedItem = nullptr;
