@@ -4,6 +4,7 @@
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
 #include "Core/ItemSystemTypes.h"
+#include "Data/ItemPayloadRoutingTypes.h"
 #include "ItemDefinition.generated.h"
 
 // Forward declarations
@@ -69,6 +70,10 @@ public:
     // The effect applied to the target
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
     TSoftClassPtr<UItemPayloadStrategy> PayloadClass;
+
+    // Rules used by direct/instant executions to route payload recipients.
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Logic")
+    FItemPayloadRoutingSettings PayloadRouting;
 
     // --- Audio & FX ---
 

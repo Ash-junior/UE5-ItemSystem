@@ -84,3 +84,25 @@ This document lists recommended presets for core gameplay tests.
 ## 5) Tag Notes
 - Add `Rule.Ignore.Teammates` in `IdentityTags` to prevent friendly fire.
 - Use `UsageBlockingTags` for stun or other blocking states.
+
+---
+
+## 6) DA_Item_SpeedBoost_DirectRouted
+**Use**: direct (non-projectile) speed boost routed to allies or enemies by rules.
+
+**IdentityTags**
+- `Item.Test.Speed.Boost.Direct`
+
+**Logic**
+- `ExecutionClass`: `AExecution_DirectApply` (or BP derived from it)
+- `TargetingClass`: optional (used for fallback only)
+- `PayloadClass`: `BP_Payload_ModifySpeed_Boost`
+
+**PayloadRouting (on ItemDefinition)**
+- `RoutingPolicy`: `SearchByRules`
+- `RequiredRecipientTag`: `Routing.BuffReceiver` (optional)
+- `RecipientRelation`: `SameTeamAsInstigator` (ally buff) or `EnemyOfInstigator` (enemy debuff)
+- `SearchSelection`: `NearestSingle` or `AllMatching`
+- `SearchRadius`: `2000` (example)
+- `bFallbackToTargetingResultIfNoSearchMatch`: true/false per design
+- `bFallbackToInstigatorIfNoRecipient`: true for self-safe buffs

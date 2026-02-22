@@ -461,3 +461,45 @@ Mark as **PASS** only when all are true:
 3. Item disappears without expected respawn:
    1. verify manager refresh mode and interval
    2. verify `bRequestImmediateRespawnOnConsume`.
+
+---
+
+## 12) Direct Payload Routing (Non-Projectile / Non-Trap)
+This section validates payload routing for direct-use items (shield, speed boost, etc.) using `AExecution_DirectApply`.
+
+### 12.1 Setup
+1. Create an item definition using:
+   1. `ExecutionClass = AExecution_DirectApply` (or a BP child)
+   2. `PayloadClass = Payload_ModifySpeed` (or any payload)
+2. Configure `PayloadRouting` on the item:
+   1. `RoutingPolicy = SearchByRules`
+   2. `RecipientRelation = SameTeamAsInstigator` or `EnemyOfInstigator`
+   3. `RequiredRecipientTag` optional (`Routing.BuffReceiver`, `Routing.DebuffReceiver`, etc.)
+   4. `SearchSelection = NearestSingle` or `AllMatching`
+3. Prepare 3 pawns:
+   1. `P1` instigator (Team 1)
+   2. `P2` ally (Team 1)
+   3. `P3` enemy (Team 2)
+4. Add tags for routing tests:
+   1. ally/enemy candidates with required routing tag if used.
+
+### 12.2 Ally Tagged Route
+1. Set `RecipientRelation = SameTeamAsInstigator`.
+2. Set `RequiredRecipientTag = Routing.BuffReceiver`.
+3. Use item from `P1`.
+4. Expected:
+   1. Payload applies to tagged ally candidate(s) according to `SearchSelection`.
+   2. Execution actor finishes immediately after apply.
+
+### 12.3 Enemy Route By Team (No Tag)
+1. Set `RecipientRelation = EnemyOfInstigator`.
+2. Clear `RequiredRecipientTag`.
+3. Use item from `P1`.
+4. Expected:
+   1. Payload applies to enemy target(s) (different `TeamID`).
+   2. No projectile/trap is spawned; execution ends immediately.
+
+### 12.4 Fallbacks
+1. Make search fail (no valid candidates).
+2. If `bFallbackToTargetingResultIfNoSearchMatch = true`, provide a valid targeting strategy and verify fallback apply.
+3. If still no recipient and `bFallbackToInstigatorIfNoRecipient = true`, payload applies to instigator.
