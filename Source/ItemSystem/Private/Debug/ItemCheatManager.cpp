@@ -235,7 +235,7 @@ namespace
 	};
 }
 
-void UItemCheatManager::Cheat_GiveItem(FString TagQueryString)
+void UItemCheatManager::Cheat_GiveItem(FString TagQueryString, int32 Amount)
 {
     // 1. Get the Player Pawn
     APawn* MyPawn = GetPlayerController() ? GetPlayerController()->GetPawn() : nullptr;
@@ -276,8 +276,8 @@ void UItemCheatManager::Cheat_GiveItem(FString TagQueryString)
     UItemDefinition* FoundItem = Manager->GetItemByQuery(Query);
     if (FoundItem)
     {
-        Inventory->Server_GrantItem(FoundItem, 1);
-        UE_LOG(LogTemp, Log, TEXT("Cheat: Granted item %s"), *FoundItem->GetName());
+        Inventory->Server_GrantItem(FoundItem, FMath::Max(1, Amount));
+        UE_LOG(LogTemp, Log, TEXT("Cheat: Granted item %s (x%d)"), *FoundItem->GetName(), FMath::Max(1, Amount));
     }
     else
     {

@@ -17,9 +17,10 @@ public:
 	/**
 	 * Gives an item to the player by finding an item that matches the tag query.
 	 * Command: Cheat_GiveItem "Tag.To.Search"
+	 * Command: Cheat_GiveItem "Tag.To.Search" 3
 	 */
 	UFUNCTION(Exec)
-	void Cheat_GiveItem(FString TagQueryString);
+	void Cheat_GiveItem(FString TagQueryString, int32 Amount = 1);
 
 	/**
 	 * Forces the inventory to clear.
