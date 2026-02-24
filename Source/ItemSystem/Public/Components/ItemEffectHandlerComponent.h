@@ -43,9 +43,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-private:
-	void ApplySpeedEffect_Implementation(float Multiplier, float Duration, FGameplayTag EffectTag);
+	virtual void ApplySpeedEffect_Implementation(float Multiplier, float Duration, FGameplayTag EffectTag);
 
+private:
 	void OnSpeedEffectExpired();
 
 	UItemEffectComponent* FindEffectComponent() const;

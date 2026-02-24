@@ -27,7 +27,7 @@ bool UItemEffectHandlerComponent::HandleEffect(const FItemEffectSpec& Spec, cons
 
 	if (SpeedEffectParentTag.IsValid() && Spec.EffectTag.MatchesTag(SpeedEffectParentTag))
 	{
-		Execute_ApplySpeedEffect(this, Spec.Magnitude, Spec.Duration, Spec.EffectTag);
+		ApplySpeedEffect(Spec.Magnitude, Spec.Duration, Spec.EffectTag);
 
 		// Notify UI component if present
 		if (UItemEffectComponent* EffectComp = FindEffectComponent())
