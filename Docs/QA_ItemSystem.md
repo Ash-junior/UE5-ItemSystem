@@ -761,3 +761,302 @@ Mark **PASS** only when all are true:
 4. **UI not updating**
    - Check `ItemEffectComponent` is present and `OnEffectsChanged` is bound in the UI BP.
    - On clients: check `ItemEffectComponent` has replication enabled (`SetIsReplicated(true)` in the constructor — already the default).
+
+---
+
+## 14) Projectile Launch Modes (ArcThrow / Drop / ExternalVelocity)
+
+This section validates the three launch modes introduced on `AExecution_Projectile` via `EItemLaunchMode`. Each mode is configured per Blueprint subclass and drives the initial velocity applied on spawn and on pool reuse.
+
+### 14.1 Vocabulary
+
+- **ArcThrow** — ballistic parabola solved by `SuggestProjectileVelocity`, aimed at the player's camera aim point.
+- **Drop** — item released with minimal forward impulse; gravity handles the trajectory (intended for mines and floor grenades).
+- **ExternalVelocity** — velocity supplied by an external system (animation-driven throw, charge-up, etc.) via `FItemContext::LaunchVelocity`. Falls back to ArcThrow if the field is not filled.
+- **GravityScale** — multiplier applied to world gravity for this projectile (affects arc shape).
+- **SpawnLoc** — actor location at the moment `ApplyLaunchMode` is called (BeginPlay or ResetForReuse).
+
+### 14.2 One-Time Setup
+
+1. Create three Blueprint subclasses of `AExecution_Projectile`:
+   - `BP_Projectile_Arc` — `LaunchMode = ArcThrow`
+   - `BP_Projectile_Drop` — `LaunchMode = Drop`
+   - `BP_Projectile_External` — `LaunchMode = ExternalVelocity`
+2. On all three: set `bShowDebugVisuals = true` to track trajectory visually.
+3. Create corresponding item definitions pointing to each execution BP.
+4. Enable QA logs: `ItemSystem.QA 1`.
+5. Run PIE with 2 players (Listen Server) to also validate replication.
+6. Ensure the pawn has a valid `GetSocketByTag` or the projectile will spawn at the actor origin.
+
+---
+
+### 14.3 ArcThrow — Baseline
+
+**Goal** — verify the projectile follows a parabolic arc toward the camera aim point.
+
+**Setup**
+1. Open `BP_Projectile_Arc`.
+2. Set `Speed = 2000`, `GravityScale = 1.0`, `bFavorHighArc = false`, `ArcTraceDistance = 5000`.
+
+**Steps**
+1. Console: `Cheat_GiveItem Item.Test.ArcThrow` (or the matching item tag).
+2. Aim at a visible surface 1000–3000 units away.
+3. Activate the item.
+4. Repeat aiming at targets at different distances (close, mid, far).
+
+**Expected**
+1. Projectile leaves the spawn location and curves toward the aim point.
+2. At mid/far distance the arc is visually parabolic, not straight.
+3. Projectile impacts near the aimed surface.
+4. No QA fallback log (`ArcThrow could not solve ballistic path...`) appears for reachable targets.
+
+---
+
+### 14.4 ArcThrow — High Arc vs Low Arc
+
+**Goal** — verify `bFavorHighArc` selects the correct ballistic solution when two exist.
+
+**Steps**
+1. With `bFavorHighArc = false`: fire at a mid-distance target. Note trajectory.
+2. Change `BP_Projectile_Arc` to `bFavorHighArc = true`. Refire at the same target.
+
+**Expected**
+1. `bFavorHighArc = false` — projectile takes the flatter, faster path.
+2. `bFavorHighArc = true` — projectile takes the higher, looping path to the same target.
+
+---
+
+### 14.5 ArcThrow — Unreachable Target Fallback
+
+**Goal** — verify graceful fallback when `SuggestProjectileVelocity` cannot find a solution.
+
+**Setup**
+1. Set `Speed = 100` (very low) on `BP_Projectile_Arc`.
+2. Aim at a target very far away or directly above.
+
+**Steps**
+1. Activate the item.
+2. Observe trajectory and output log.
+
+**Expected**
+1. Projectile still fires — it shoots directly toward the aim direction.
+2. QA log: `QA: ArcThrow could not solve ballistic path to aim point — using direct aim.`
+3. No crash.
+
+**Cleanup** — restore `Speed = 2000`.
+
+---
+
+### 14.6 ArcThrow — GravityScale
+
+**Goal** — verify `GravityScale` affects arc curvature.
+
+**Steps**
+1. Fire with `GravityScale = 1.0`, note arc shape.
+2. Change to `GravityScale = 0.3` (floaty), refire at the same distance.
+3. Change to `GravityScale = 2.5` (heavy), refire.
+
+**Expected**
+1. Lower `GravityScale` → broader, higher arc for the same speed and aim point.
+2. Higher `GravityScale` → tighter, lower arc.
+3. In all cases the projectile still reaches near the same aim point (the solver compensates).
+
+---
+
+### 14.7 ArcThrow — No Player Controller Fallback
+
+**Goal** — verify behaviour when `InstigatorController` is not a `APlayerController` (AI or missing controller).
+
+**Steps**
+1. Temporarily null the controller in a debug BP (or test with an AI pawn that has no `APlayerController`).
+2. Fire the item.
+
+**Expected**
+1. Projectile fires forward at full `Speed` along the pawn's forward vector.
+2. No crash.
+
+---
+
+### 14.8 Drop — Pure Gravity Fall
+
+**Goal** — verify the item falls vertically with no forward drift when `DropForwardImpulse = 0`.
+
+**Setup**
+1. Open `BP_Projectile_Drop`.
+2. Set `DropForwardImpulse = 0`, `GravityScale = 1.0`.
+
+**Steps**
+1. Stand still, look straight ahead.
+2. Console: `Cheat_GiveItem Item.Test.Drop`.
+3. Activate the item.
+
+**Expected**
+1. Projectile spawns at the socket location and falls straight down (no forward motion).
+2. Lands near the pawn's feet.
+3. Debug sphere drops vertically without drifting.
+
+---
+
+### 14.9 Drop — Forward Impulse
+
+**Goal** — verify `DropForwardImpulse` adds a nudge in the pawn's facing direction.
+
+**Steps**
+1. Set `DropForwardImpulse = 300` on `BP_Projectile_Drop`.
+2. Face a clear direction. Activate the item.
+3. Increase to `DropForwardImpulse = 800`, repeat.
+
+**Expected**
+1. Projectile travels slightly forward before falling; distance scales with impulse value.
+2. Trajectory remains dominated by gravity — this is not a throw, just a nudge.
+
+---
+
+### 14.10 ExternalVelocity — Velocity Provided
+
+**Goal** — verify the projectile uses `FItemContext::LaunchVelocity` when `bHasExternalLaunchVelocity = true`.
+
+**Setup**
+1. In a test Blueprint (GameState or debug actor), build `FItemContext` manually:
+   - `bHasExternalLaunchVelocity = true`
+   - `LaunchVelocity = FVector(1000, 0, 500)` (forward + upward)
+   - Fill `Instigator`, `InstigatorController`, `ItemDefinition`.
+2. Call `UItemSystemManager::Get(World)->SpawnItemExecution(Context)` directly (bypassing `Server_TryActivateItem`).
+
+**Steps**
+1. Trigger the context injection from the debug BP (server side).
+2. Observe projectile direction.
+
+**Expected**
+1. Projectile immediately travels in the direction of `LaunchVelocity (1000, 0, 500)` — forward and slightly up.
+2. No ArcThrow computation runs.
+3. No warning log.
+
+---
+
+### 14.11 ExternalVelocity — Missing Velocity Fallback
+
+**Goal** — verify fallback to ArcThrow when `bHasExternalLaunchVelocity = false`.
+
+**Setup**
+1. Same debug BP as 14.10 but set `bHasExternalLaunchVelocity = false` (leave `LaunchVelocity` at zero).
+
+**Steps**
+1. Trigger the context.
+2. Observe projectile and output log.
+
+**Expected**
+1. Projectile fires using ArcThrow logic (ballistic arc toward camera aim point).
+2. Output log: `Warning: Execution_Projectile ...: ExternalVelocity mode but context has no launch velocity. Falling back to ArcThrow.`
+3. No crash.
+
+---
+
+### 14.12 Pool Reuse — Velocity Reset
+
+**Goal** — verify that a reused pooled projectile acquires a fresh velocity (not the previous one).
+
+**Setup**
+1. Use `BP_Projectile_Arc` with `MaxPoolSizePerClass ≥ 1` on the manager.
+2. Enable QA logs.
+
+**Steps**
+1. Fire once — projectile hits something and returns to the pool.
+   - Log: `QA: Added actor to pool ...`
+2. Rotate the pawn 90° to face a different direction.
+3. Fire again.
+   - Log: `QA: Reusing pooled actor ...`
+4. Observe the second projectile's direction.
+
+**Expected**
+1. Second projectile flies toward the new aim direction, not the previous one.
+2. `ResetForReuse` log confirms `StopMovementImmediately` ran and `ApplyLaunchMode` was called again.
+3. No residual velocity from the first shot.
+
+---
+
+### 14.13 Lifespan — Auto-Destroy After 10 s
+
+**Goal** — verify the projectile self-destructs after 10 seconds if it never hits anything.
+
+**Steps**
+1. Fire `BP_Projectile_Arc` into open air (no target).
+2. Wait 10 seconds.
+
+**Expected**
+1. Projectile actor is destroyed after ~10 s.
+2. Pool entry is not added (actor destroys itself, not returned via `FinishExecution`).
+3. No crash.
+
+---
+
+### 14.14 Instigator Self-Collision
+
+**Goal** — verify the projectile does not trigger on its own instigator.
+
+**Steps**
+1. Fire `BP_Projectile_Arc` directly downward at the pawn's feet.
+2. Observe whether the payload fires on the instigator.
+
+**Expected**
+1. Instigator is in `MoveIgnoreActors` — no hit/overlap triggers on them.
+2. Payload is not applied to the instigator.
+
+---
+
+### 14.15 Replication
+
+**Goal** — verify projectile movement and impact replicate correctly to all clients.
+
+**Setup** — PIE 2 players, Listen Server. Player 1 is server.
+
+**Steps**
+1. Player 1 fires `BP_Projectile_Arc` at Player 2.
+2. Observe both windows.
+
+**Expected**
+1. Projectile appears and moves on both server and client windows (`SetReplicateMovement(true)`).
+2. Impact VFX/SFX play on both sides (NetMulticast Unreliable).
+3. Payload applies once — `bHasExploded` guard prevents double application.
+
+---
+
+### 14.16 Pass/Fail Checklist
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | ArcThrow reaches aimed target with visible parabolic arc | |
+| 2 | `bFavorHighArc` selects correct ballistic solution | |
+| 3 | ArcThrow falls back to direct aim for unreachable targets + QA log | |
+| 4 | `GravityScale` changes arc curvature while still reaching aim point | |
+| 5 | No PlayerController → fires forward, no crash | |
+| 6 | Drop `DropForwardImpulse = 0` → pure vertical fall | |
+| 7 | Drop with impulse → nudged forward, gravity dominant | |
+| 8 | ExternalVelocity uses `LaunchVelocity` when provided | |
+| 9 | ExternalVelocity falls back to ArcThrow + warning when field missing | |
+| 10 | Pool reuse applies fresh velocity, not stale one | |
+| 11 | Projectile auto-destroys after 10 s lifespan | |
+| 12 | Instigator not affected by own projectile | |
+| 13 | Movement and impact replicate to all clients | |
+
+---
+
+### 14.17 Common Misconfiguration
+
+1. **Projectile flies backward or in wrong direction**
+   - Check `GetSocketByTag` returns a socket that points in the correct forward direction.
+   - For ExternalVelocity: verify `LaunchVelocity` is in world space, not local space.
+
+2. **ArcThrow always falls back to direct aim**
+   - `Speed` is too low for the target distance. Increase `Speed` or reduce `ArcTraceDistance`.
+   - Target is directly above the instigator (no ballistic solution exists for vertical shots at low speed).
+
+3. **Drop doesn't fall (floats or drifts)**
+   - Check `GravityScale > 0` on the projectile.
+   - Check world gravity is not overridden to zero in the level's WorldSettings.
+
+4. **ExternalVelocity projectile moves at wrong speed**
+   - `MaxSpeed` is clamped to `Speed` by default. The system auto-raises `MaxSpeed` if `LaunchVelocity.Size() > MaxSpeed`, but verify this ran correctly by checking logs.
+
+5. **Second pool reuse keeps old velocity**
+   - `ResetForReuse` calls `StopMovementImmediately()` then `ApplyLaunchMode()`. If a BP child of `Execution_Projectile` overrides `ResetForReuse` without calling `Super`, neither runs. Ensure `Super::ResetForReuse()` is called.
