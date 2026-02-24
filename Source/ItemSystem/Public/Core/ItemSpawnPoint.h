@@ -153,4 +153,8 @@ protected:
 
     UPROPERTY(ReplicatedUsing = OnRep_AssignedItem, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<UItemDefinition> AssignedItem = nullptr;
+
+    // Server-only guard: set synchronously when a consume is in flight to prevent
+    // a second overlap event in the same frame from issuing a duplicate grant.
+    bool bPendingConsume = false;
 };

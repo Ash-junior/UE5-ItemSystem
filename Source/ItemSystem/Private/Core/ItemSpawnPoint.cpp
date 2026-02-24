@@ -122,6 +122,7 @@ void AItemSpawnPoint::SetAssignedItem(UItemDefinition* NewItem)
     }
 
     AssignedItem = NewItem;
+    bPendingConsume = false; // Release lock: item has been committed (cleared or replaced)
     OnRep_AssignedItem();
 }
 
@@ -181,8 +182,18 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
     bool bFromSweep,
     const FHitResult& SweepResult)
 {
-    if (!HasAuthority() || !AssignedItem || !OtherActor || OtherActor == this)
+    if (!HasAuthority() || !OtherActor || OtherActor == this)
     {
+        return;
+    }
+
+    if (!AssignedItem || bPendingConsume)
+    {
+        if (bPendingConsume && IsItemSystemQAEnabled())
+        {
+            UE_LOG(LogItemSystem, Log, TEXT("QA: SpawnPoint %s blocked duplicate overlap from %s (consume pending)."),
+                *GetName(), *GetNameSafe(OtherActor));
+        }
         return;
     }
 
@@ -202,6 +213,12 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
                 *GetNameSafe(OtherActor));
         }
         return;
+    }
+
+    // Lock synchronously before the grant so any further overlap in the same frame is blocked.
+    if (PickupRoutingSettings.bConsumeOnSuccessfulGrant)
+    {
+        bPendingConsume = true;
     }
 
     RecipientInventory->Server_GrantItem(AssignedItem, ResolvePickupGrantAmount());
