@@ -1,69 +1,75 @@
 #include "Strategies/Implementation/Executions/Execution_Projectile.h"
 
 #include "Components/SphereComponent.h"
-#include "Strategies/ItemPayloadStrategy.h"
-#include "Strategies/ItemTargetingStrategy.h"
-#include "GameFramework/ProjectileMovementComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
-
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Strategies/ItemPayloadStrategy.h"
+#include "Core/ItemSystemLog.h"
 
 AExecution_Projectile::AExecution_Projectile()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Create Collision Component
 	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionComponent"));
 	CollisionComponent->InitSphereRadius(15.0f);
-	CollisionComponent->SetCollisionProfileName(TEXT("Projectile")); // Ensure Projectile profile exists in project settings, or use BlockAllDynamic
+	CollisionComponent->SetCollisionProfileName(TEXT("Projectile"));
 	CollisionComponent->SetCanEverAffectNavigation(false);
 	CollisionComponent->SetGenerateOverlapEvents(true);
 	CollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	
-	// Bind the Hit event
 	CollisionComponent->OnComponentHit.AddDynamic(this, &AExecution_Projectile::OnProjectileHit);
 	CollisionComponent->OnComponentBeginOverlap.AddDynamic(this, &AExecution_Projectile::OnProjectileOverlap);
-	
+
 	RootComponent = CollisionComponent;
 
-	// Create Movement Component
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileMovement"));
 	ProjectileMovement->UpdatedComponent = CollisionComponent;
-	ProjectileMovement->InitialSpeed = Speed;
-	ProjectileMovement->MaxSpeed = Speed;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = false;
-	ProjectileMovement->bIsHomingProjectile = false;
-	ProjectileMovement->ProjectileGravityScale = GravityScale;
-	
-	// NETWORKING: Ensure movement is synchronized
+
 	SetReplicateMovement(true);
+}
+
+// ---------------------------------------------------------------------------
+
+void AExecution_Projectile::BeginPlay()
+{
+	// Apply base movement settings before the component initialises.
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->InitialSpeed = Speed;
+		ProjectileMovement->MaxSpeed = Speed;
+		ProjectileMovement->ProjectileGravityScale = GravityScale;
+	}
+
+	Super::BeginPlay(); // Creates PayloadInstance, plays spawn sound/VFX.
+
+	SetLifeSpan(10.0f);
+
+	if (CollisionComponent && ItemContext.Instigator)
+	{
+		CollisionComponent->MoveIgnoreActors.Add(ItemContext.Instigator);
+	}
+
+	ApplyLaunchMode();
 }
 
 void AExecution_Projectile::ResetForReuse()
 {
 	bHasExploded = false;
 
-	// Re-arm the safety lifespan timer (was cancelled by ReleaseExecutionActor).
 	SetLifeSpan(10.0f);
 
 	if (ProjectileMovement)
 	{
-		// Stop any residual velocity from the previous flight.
 		ProjectileMovement->StopMovementImmediately();
-
-		// Re-apply config values (same class = same defaults, but explicit for clarity).
 		ProjectileMovement->InitialSpeed = Speed;
 		ProjectileMovement->MaxSpeed = Speed;
 		ProjectileMovement->ProjectileGravityScale = GravityScale;
-
-		// Clear homing state from the previous use.
-		ProjectileMovement->bIsHomingProjectile = false;
-		ProjectileMovement->HomingAccelerationMagnitude = HomingAcceleration;
-		ProjectileMovement->HomingTargetComponent = nullptr;
 	}
 
-	// Clear the previous instigator from the ignore list and register the new one.
 	if (CollisionComponent)
 	{
 		CollisionComponent->MoveIgnoreActors.Reset();
@@ -73,76 +79,125 @@ void AExecution_Projectile::ResetForReuse()
 		}
 	}
 
-	// Re-acquire homing target for the new context if required.
-	if (bIsHoming && TargetingInstance && ProjectileMovement)
+	ApplyLaunchMode();
+}
+
+// ---------------------------------------------------------------------------
+// Launch modes
+
+void AExecution_Projectile::ApplyLaunchMode()
+{
+	switch (LaunchMode)
 	{
-		AActor* FoundTarget = TargetingInstance->FindTarget(ItemContext, GetActorLocation());
-		if (FoundTarget)
-		{
-			ProjectileMovement->bIsHomingProjectile = true;
-			ProjectileMovement->HomingAccelerationMagnitude = HomingAcceleration;
-			ProjectileMovement->HomingTargetComponent = FoundTarget->GetRootComponent();
-		}
+	case EItemLaunchMode::ArcThrow:        ApplyArcThrow();        break;
+	case EItemLaunchMode::Drop:            ApplyDrop();            break;
+	case EItemLaunchMode::ExternalVelocity: ApplyExternalVelocity(); break;
 	}
 }
 
-void AExecution_Projectile::BeginPlay()
+void AExecution_Projectile::ApplyArcThrow()
 {
-	// Update speed from config before Super::BeginPlay might run logic (though Super currently just calls BP)
-	if (ProjectileMovement)
+	if (!ProjectileMovement)
 	{
-		ProjectileMovement->InitialSpeed = Speed;
-		ProjectileMovement->MaxSpeed = Speed;
-		ProjectileMovement->bIsHomingProjectile = false;
-		ProjectileMovement->ProjectileGravityScale = GravityScale;
-		ProjectileMovement->HomingTargetComponent = nullptr;
+		return;
 	}
 
-	Super::BeginPlay();
-	
-	// Safety: Destroy after 10 seconds if nothing is hit to prevent leaks
-	SetLifeSpan(10.0f);
-	
+	// Resolve the aim point from the instigator's camera.
+	APlayerController* PC = Cast<APlayerController>(ItemContext.InstigatorController);
+	if (!PC)
+	{
+		// No controller available — shoot forward at full speed.
+		ProjectileMovement->Velocity = GetActorForwardVector() * Speed;
+		return;
+	}
+
+	FVector ViewLoc;
+	FRotator ViewRot;
+	PC->GetPlayerViewPoint(ViewLoc, ViewRot);
+
+	const FVector TraceEnd = ViewLoc + ViewRot.Vector() * ArcTraceDistance;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
 	if (ItemContext.Instigator)
 	{
-		CollisionComponent->MoveIgnoreActors.Add(ItemContext.Instigator);
-		
-		if (APawn* InstigatorPawn = Cast<APawn>(ItemContext.Instigator))
-		{
-			CollisionComponent->MoveIgnoreActors.Add(InstigatorPawn);
-		}
-        
-		UE_LOG(LogTemp, Log, TEXT("DEBUG: Projectile Spawned. Instigator is %s"), *ItemContext.Instigator->GetName());
+		Params.AddIgnoredActor(ItemContext.Instigator);
+	}
+
+	FVector AimPoint = TraceEnd;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, TraceEnd, ECC_Visibility, Params))
+	{
+		AimPoint = Hit.ImpactPoint;
+	}
+
+	// Compute ballistic velocity — account for this projectile's gravity scale.
+	const FVector SpawnLoc = GetActorLocation();
+	const float EffectiveGravityZ = GetWorld()->GetGravityZ() * GravityScale;
+
+	FVector SuggestedVelocity;
+	const bool bSuccess = UGameplayStatics::SuggestProjectileVelocity(
+		this, SuggestedVelocity,
+		SpawnLoc, AimPoint, Speed,
+		bFavorHighArc, 0.0f, EffectiveGravityZ,
+		ESuggestProjVelocityTraceOption::DoNotTrace);
+
+	if (bSuccess)
+	{
+		ProjectileMovement->Velocity = SuggestedVelocity;
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("DEBUG: Projectile Spawned but ItemContext.Instigator is NULL!"));
-	}
+		// Target unreachable at this speed — shoot straight toward aim point.
+		const FVector Dir = (AimPoint - SpawnLoc).GetSafeNormal();
+		ProjectileMovement->Velocity = Dir * Speed;
 
-	// Targeting Logic
-	if (bIsHoming && TargetingInstance)
-	{
-		// Ask the strategy for a target based on the Context and current location
-		AActor* FoundTarget = TargetingInstance->FindTarget(ItemContext, GetActorLocation());
-
-		if (FoundTarget)
+		if (IsItemSystemQAEnabled())
 		{
-			// Apply Homing settings
-			ProjectileMovement->bIsHomingProjectile = true;
-			ProjectileMovement->HomingAccelerationMagnitude = HomingAcceleration;
-			ProjectileMovement->HomingTargetComponent = FoundTarget->GetRootComponent();
-			
-			if (bShowDebugVisuals)
-			{
-				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, FString::Printf(TEXT("Projectile LOCKED ON: %s"), *FoundTarget->GetName()));
-			}
-		}
-		else if (bShowDebugVisuals)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Projectile: No Target Found via Strategy"));
+			UE_LOG(LogItemSystem, Log, TEXT("QA: ArcThrow could not solve ballistic path to aim point — using direct aim."));
 		}
 	}
 }
+
+void AExecution_Projectile::ApplyDrop()
+{
+	if (!ProjectileMovement)
+	{
+		return;
+	}
+
+	// Optionally nudge forward; gravity does the rest.
+	ProjectileMovement->Velocity = GetActorForwardVector() * DropForwardImpulse;
+}
+
+void AExecution_Projectile::ApplyExternalVelocity()
+{
+	if (!ProjectileMovement)
+	{
+		return;
+	}
+
+	if (ItemContext.bHasExternalLaunchVelocity)
+	{
+		ProjectileMovement->Velocity = ItemContext.LaunchVelocity;
+		// Ensure MaxSpeed won't clamp the provided velocity.
+		const float VelMagnitude = ItemContext.LaunchVelocity.Size();
+		if (VelMagnitude > ProjectileMovement->MaxSpeed)
+		{
+			ProjectileMovement->MaxSpeed = VelMagnitude;
+		}
+	}
+	else
+	{
+		// External velocity was expected but not provided — fall back to arc throw.
+		UE_LOG(LogItemSystem, Warning,
+			TEXT("Execution_Projectile %s: ExternalVelocity mode but context has no launch velocity. Falling back to ArcThrow."),
+			*GetName());
+		ApplyArcThrow();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tick / debug
 
 void AExecution_Projectile::Tick(float DeltaTime)
 {
@@ -150,20 +205,12 @@ void AExecution_Projectile::Tick(float DeltaTime)
 
 	if (bShowDebugVisuals)
 	{
-		// Draw a sphere at the projectile location
 		DrawDebugSphere(GetWorld(), GetActorLocation(), 25.0f, 12, FColor::Yellow, false, -1.0f, 0, 2.0f);
-
-		// If homing, draw a line to the target
-		if (ProjectileMovement->bIsHomingProjectile && ProjectileMovement->HomingTargetComponent.IsValid())
-		{
-			AActor* TargetActor = ProjectileMovement->HomingTargetComponent->GetOwner();
-			if (TargetActor)
-			{
-				DrawDebugLine(GetWorld(), GetActorLocation(), TargetActor->GetActorLocation(), FColor::Red, false, -1.0f, 0, 2.0f);
-			}
-		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Collision
 
 bool AExecution_Projectile::CanTriggerOnActor(AActor* OtherActor) const
 {
@@ -171,28 +218,22 @@ bool AExecution_Projectile::CanTriggerOnActor(AActor* OtherActor) const
 	{
 		return false;
 	}
-	
-	// Basic validation to ensure we don't destroy ourselves hitting the instigator instantly
-	// Note: Collision Channels are the preferred way to handle this, but code check adds safety.
+
 	if (ItemContext.Instigator && OtherActor == ItemContext.Instigator)
 	{
-		return false; 
+		return false;
 	}
-	
+
 	if (GetInstigator() && OtherActor == GetInstigator())
 	{
 		return false;
 	}
 
-	if (!ShouldAffectActor(OtherActor))
-	{
-		return false;
-	}
-
-	return true;
+	return ShouldAffectActor(OtherActor);
 }
 
-void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveComponent* OtherComp, const FHitResult* Hit, bool bFromOverlap)
+void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	const FHitResult* Hit, bool bFromOverlap)
 {
 	if (bHasExploded || !HasAuthority())
 	{
@@ -200,7 +241,7 @@ void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveCompo
 	}
 
 	bHasExploded = true;
-	
+
 	FVector ImpactPoint = GetActorLocation();
 	if (Hit)
 	{
@@ -215,56 +256,38 @@ void AExecution_Projectile::TriggerExplosion(AActor* OtherActor, UPrimitiveCompo
 	{
 		const TCHAR* TriggerLabel = bFromOverlap ? TEXT("OVERLAP") : TEXT("HIT");
 		const FString ComponentName = OtherComp ? OtherComp->GetName() : TEXT("None");
-		FString HitMsg = FString::Printf(TEXT("Projectile %s: %s (Component: %s)"), TriggerLabel, *OtherActor->GetName(), *ComponentName);
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan, HitMsg);
-		UE_LOG(LogTemp, Warning, TEXT("%s"), *HitMsg);
-
-		// Draw a point at impact/overlap location for 2 seconds
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Cyan,
+			FString::Printf(TEXT("Projectile %s: %s (Component: %s)"), TriggerLabel, *OtherActor->GetName(), *ComponentName));
 		DrawDebugPoint(GetWorld(), ImpactPoint, 20.0f, FColor::Cyan, false, 2.0f);
 	}
 
 	PlayImpactFX(ImpactPoint);
 
-	// Payload Execution
 	if (PayloadInstance)
 	{
 		FItemContext PayloadContext = ItemContext;
-		if (Hit)
-		{
-			PayloadContext.bHasImpactPoint = true;
-			PayloadContext.ImpactPoint = Hit->ImpactPoint;
-		}
-		else if (OtherComp)
-		{
-			PayloadContext.bHasImpactPoint = true;
-			PayloadContext.ImpactPoint = OtherComp->GetComponentLocation();
-		}
-
+		PayloadContext.bHasImpactPoint = true;
+		PayloadContext.ImpactPoint = ImpactPoint;
 		PayloadInstance->ApplyEffect(OtherActor, PayloadContext);
 	}
 
-	// Visuals/Sound (SpawnSound is handled in Base BeginPlay, here we could add Impact VFX)
-	
-	// Cleanup
 	FinishExecution();
 }
 
-void AExecution_Projectile::OnProjectileHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+void AExecution_Projectile::OnProjectileHit(UPrimitiveComponent* HitComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (!CanTriggerOnActor(OtherActor))
+	if (CanTriggerOnActor(OtherActor))
 	{
-		return;
+		TriggerExplosion(OtherActor, OtherComp, &Hit, false);
 	}
-
-	TriggerExplosion(OtherActor, OtherComp, &Hit, false);
 }
 
-void AExecution_Projectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void AExecution_Projectile::OnProjectileOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
+	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (!CanTriggerOnActor(OtherActor))
+	if (CanTriggerOnActor(OtherActor))
 	{
-		return;
+		TriggerExplosion(OtherActor, OtherComp, &SweepResult, true);
 	}
-
-	TriggerExplosion(OtherActor, OtherComp, &SweepResult, true);
 }

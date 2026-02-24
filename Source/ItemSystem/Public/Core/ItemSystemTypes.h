@@ -80,6 +80,16 @@ public:
     // Unique ID for this specific usage instance (useful for debug logs/replays)
     UPROPERTY(BlueprintReadWrite, Category = "Context")
     FGuid InvocationGUID;
+
+    // Optional pre-computed launch velocity provided by an external throw system.
+    // Set bHasExternalLaunchVelocity = true and fill LaunchVelocity, then call
+    // Manager->SpawnItemExecution() directly — bypassing Server_TryActivateItem.
+    // Only consumed when Execution_Projectile is set to EItemLaunchMode::ExternalVelocity.
+    UPROPERTY(BlueprintReadWrite, Category = "Context")
+    FVector LaunchVelocity = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Context")
+    bool bHasExternalLaunchVelocity = false;
 };
 
 /**
