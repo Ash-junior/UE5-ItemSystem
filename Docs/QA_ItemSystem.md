@@ -514,3 +514,250 @@ This section validates payload routing for direct-use items (shield, speed boost
 1. Make search fail (no valid candidates).
 2. If `bFallbackToTargetingResultIfNoSearchMatch = true`, provide a valid targeting strategy and verify fallback apply.
 3. If still no recipient and `bFallbackToInstigatorIfNoRecipient = true`, payload applies to instigator.
+
+---
+
+## 13) ItemEffectHandlerComponent — Effect Management
+
+This section validates `UItemEffectHandlerComponent`, the single-component effect system that replaced the previous three-layer design. Tests cover routing, timer lifecycle, re-application, Blueprint override, UI replication, and edge cases.
+
+### 13.1 Vocabulary
+
+- **Handler** — `UItemEffectHandlerComponent` attached to the pawn.
+- **EffectComp** — `UItemEffectComponent` on the same pawn (optional, for UI).
+- **BaseSpeed** — `MaxWalkSpeed` captured at the moment of the first effect application.
+- **Re-apply** — calling the same effect while it is already active.
+
+### 13.2 One-Time Setup
+
+1. Open your Pawn BP.
+2. Add `ItemEffectHandlerComponent`. Verify `SpeedEffectParentTag = Item.Effect.ModifySpeed`.
+3. Implement `ApplyItemEffect`:
+   ```
+   HandleEffect(Effect, Context)  →  return result
+   ```
+4. Optional — add `ItemEffectComponent` to the same pawn for UI tests (sections 13.7–13.8).
+5. Create or locate an item definition that uses `Payload_ModifySpeed`:
+   - Set `SpeedMultiplier = 0.5` (slow), `Duration = 5.0`, `EffectTag = Item.Effect.ModifySpeed`.
+   - Call it `DA_Item_SpeedSlow` for these tests.
+6. Create a second definition `DA_Item_SpeedBoost`:
+   - `SpeedMultiplier = 2.0`, `Duration = 5.0`, `EffectTag = Item.Effect.ModifySpeed`.
+7. Enable QA logs: `ItemSystem.QA 1`.
+8. Note the pawn's default `MaxWalkSpeed` before any test (e.g. `600`). Referenced as **BaseSpeed** below.
+
+---
+
+### 13.3 Basic Apply and Expiry
+
+**Goal** — verify the effect applies and the timer correctly restores the original speed.
+
+**Steps**
+1. Console: `Cheat_GiveItem Item.Test.SpeedSlow` (or bind `DA_Item_SpeedSlow`).
+2. Activate the item.
+3. Immediately check `MaxWalkSpeed` (e.g. via `Print String` in pawn BP or debugger).
+4. Wait 5 seconds without re-applying.
+5. Check `MaxWalkSpeed` again.
+
+**Expected**
+1. On apply: `MaxWalkSpeed = BaseSpeed × 0.5` (e.g. `300`).
+2. QA log: `QA: Speed effect applied — tag: Item.Effect.ModifySpeed, multiplier: 0.50, duration: 5.00, base: 600.0 -> new: 300.0`.
+3. After 5 s: `MaxWalkSpeed` restored to `BaseSpeed` (`600`).
+4. QA log: `QA: Speed effect expired — speed restored to 600.0`.
+
+---
+
+### 13.4 Re-Apply Before Expiry (Refresh)
+
+**Goal** — verify that re-applying before expiry updates the multiplier and resets the timer, without double-capturing `BaseSpeed`.
+
+**Steps**
+1. Apply `DA_Item_SpeedSlow` (`×0.5`, 5 s).
+2. After 2 s, apply `DA_Item_SpeedBoost` (`×2.0`, 5 s).
+3. Check `MaxWalkSpeed` immediately after the second apply.
+4. Wait 5 s for the refreshed timer to expire.
+5. Check `MaxWalkSpeed` after expiry.
+
+**Expected**
+1. After second apply: `MaxWalkSpeed = BaseSpeed × 2.0` (e.g. `1200`).
+2. QA log shows `base: 600.0` for the second apply (not `300.0`), confirming `BaseSpeed` was not re-captured.
+3. After 5 s expiry: `MaxWalkSpeed` restored to `600` (original `BaseSpeed`).
+4. No second expiry fires (single timer; the first was cancelled by the re-apply).
+
+---
+
+### 13.5 Permanent Effect (Duration = 0)
+
+**Goal** — verify that `Duration = 0` creates a permanent effect with no timer.
+
+**Steps**
+1. Edit `DA_Item_SpeedSlow`: set `Duration = 0`.
+2. Apply the item.
+3. Wait 10 s.
+4. Check `MaxWalkSpeed`.
+
+**Expected**
+1. `MaxWalkSpeed = BaseSpeed × 0.5` indefinitely.
+2. No expiry log appears.
+3. `bHasBaseSpeed` remains true (speed is never restored automatically).
+
+**Cleanup** — restore `Duration = 5.0` before continuing.
+
+---
+
+### 13.6 Tag Routing — Child Tag
+
+**Goal** — verify that child tags under `Item.Effect.ModifySpeed` are routed correctly via `MatchesTag`.
+
+**Steps**
+1. Edit `DA_Item_SpeedSlow`: set `EffectTag = Item.Effect.ModifySpeed.Slow` (a child tag).
+2. Apply the item.
+
+**Expected**
+1. Effect applies normally — `MaxWalkSpeed` modified.
+2. QA log shows tag `Item.Effect.ModifySpeed.Slow`.
+3. On expiry, speed is restored correctly.
+
+---
+
+### 13.7 Tag Routing — Unknown Tag
+
+**Goal** — verify that an unrecognised tag is silently ignored and `HandleEffect` returns `false`.
+
+**Steps**
+1. Create a minimal test: call `HandleEffect` directly from a debug BP with a spec whose `EffectTag = Item.Effect.Damage` (any non-speed tag).
+2. Log the return value.
+
+**Expected**
+1. Return value is `false`.
+2. `MaxWalkSpeed` is unchanged.
+3. No crash.
+
+---
+
+### 13.8 Blueprint Override of ApplySpeedEffect
+
+**Goal** — verify that a Blueprint child of `ItemEffectHandlerComponent` can override `ApplySpeedEffect`.
+
+**Steps**
+1. Create `BP_ItemEffectHandlerComponent` (child of `UItemEffectHandlerComponent`).
+2. Override `ApplySpeedEffect`:
+   - Call `Parent: Apply Speed Effect`.
+   - Add a `Print String`: `"BP override: multiplier = [Multiplier]"`.
+3. Replace the pawn's handler component with this BP version.
+4. Apply `DA_Item_SpeedSlow`.
+
+**Expected**
+1. `Print String` fires with the correct multiplier.
+2. The C++ base implementation still runs (speed is actually modified).
+3. Expiry still restores speed correctly.
+
+---
+
+### 13.9 UI Tracking with ItemEffectComponent
+
+**Goal** — verify that `UItemEffectComponent` is updated on apply and cleared on expiry.
+
+**Prerequisites** — `ItemEffectComponent` present on the pawn.
+
+**Steps**
+1. In UI BP, bind to `OnEffectsChanged`.
+2. On `OnEffectsChanged`, call `GetActiveEffects()` and log the count + tag of each entry.
+3. Apply `DA_Item_SpeedSlow`.
+4. Wait for expiry.
+
+**Expected**
+1. On apply: `OnEffectsChanged` fires, `GetActiveEffects()` returns 1 entry with tag `Item.Effect.ModifySpeed`.
+2. On expiry: `OnEffectsChanged` fires again, `GetActiveEffects()` returns 0 entries.
+
+---
+
+### 13.10 UI Absent (No ItemEffectComponent)
+
+**Goal** — verify the handler works correctly when `ItemEffectComponent` is absent.
+
+**Steps**
+1. Remove `ItemEffectComponent` from the pawn.
+2. Apply `DA_Item_SpeedSlow`.
+3. Wait for expiry.
+
+**Expected**
+1. Speed is modified and restored correctly.
+2. No crash or warning related to the missing component.
+
+---
+
+### 13.11 Replication Validation
+
+**Goal** — verify that the speed change is visible on all clients and that the UI replication is consistent.
+
+**Setup** — PIE with 2 players (Listen Server). `ItemEffectComponent` present.
+
+**Steps**
+1. Apply effect on the **server pawn** (Player 1).
+2. Observe `MaxWalkSpeed` on both windows.
+3. Observe the UI on both windows (if bound).
+4. Wait for expiry.
+
+**Expected**
+1. `MaxWalkSpeed` is modified on the server immediately (`HandleEffect` is server-authoritative).
+2. Movement replication reflects the new speed on all clients (handled by `UCharacterMovementComponent` replication).
+3. `ItemEffectComponent.ActiveEffects` replication triggers `OnEffectsChanged` on clients — UI updates on all windows.
+4. On expiry, UI clears on all clients.
+
+---
+
+### 13.12 Non-Character Target
+
+**Goal** — verify no crash when the handler's owner is not an `ACharacter`.
+
+**Steps**
+1. Attach `ItemEffectHandlerComponent` to a non-Character actor (e.g. a `StaticMeshActor` for the test).
+2. Call `HandleEffect` with a valid speed spec.
+
+**Expected**
+1. No crash.
+2. `ApplySpeedEffect` returns early silently (no `UCharacterMovementComponent` found).
+3. `HandleEffect` still returns `true` (the tag was recognised; execution of the apply is the handler's concern).
+
+---
+
+### 13.13 Pass/Fail Checklist
+
+Mark **PASS** only when all are true:
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | Speed modified correctly on first apply | |
+| 2 | Speed restored correctly on expiry | |
+| 3 | Re-apply overrides multiplier without re-capturing BaseSpeed | |
+| 4 | Single timer — no double-expiry on re-apply | |
+| 5 | `Duration = 0` creates permanent effect | |
+| 6 | Child tags routed correctly | |
+| 7 | Unknown tags return `false`, no side effects | |
+| 8 | Blueprint override runs alongside C++ base | |
+| 9 | `ItemEffectComponent` updated on apply and cleared on expiry | |
+| 10 | System works without `ItemEffectComponent` | |
+| 11 | Speed change replicates correctly to clients | |
+| 12 | No crash on non-Character owner | |
+
+---
+
+### 13.14 Common Misconfiguration
+
+1. **Speed not modified**
+   - Check `ItemEffectHandlerComponent` is on the pawn.
+   - Check `ApplyItemEffect` is implemented and calls `HandleEffect`.
+   - Check `SpeedEffectParentTag` is set to `Item.Effect.ModifySpeed`.
+   - Check `EffectTag` on the payload matches or is a child of `SpeedEffectParentTag`.
+
+2. **Speed not restored after expiry**
+   - Check `Duration > 0` on the payload.
+   - Verify the pawn was not destroyed before expiry (timer would be orphaned).
+
+3. **BaseSpeed captured incorrectly after a re-apply**
+   - This would mean `bHasBaseSpeed` was `false` at the time of the second apply.
+   - Cause: a previous expiry reset `bHasBaseSpeed`. Check that the second apply happens *before* the first timer fires.
+
+4. **UI not updating**
+   - Check `ItemEffectComponent` is present and `OnEffectsChanged` is bound in the UI BP.
+   - On clients: check `ItemEffectComponent` has replication enabled (`SetIsReplicated(true)` in the constructor — already the default).
