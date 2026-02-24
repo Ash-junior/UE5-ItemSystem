@@ -6,6 +6,48 @@
 #include "GameplayTagContainer.h"
 #include "ItemEffectComponent.generated.h"
 
+UENUM(BlueprintType)
+enum class EItemEffectStackPolicy : uint8
+{
+	RefreshDuration UMETA(DisplayName = "Refresh Duration"),
+	ReplaceBySource UMETA(DisplayName = "Replace By Source"),
+	StackIndependent UMETA(DisplayName = "Stack Independent")
+};
+
+UENUM(BlueprintType)
+enum class EItemEffectAggregation : uint8
+{
+	Multiply UMETA(DisplayName = "Multiply"),
+	Add UMETA(DisplayName = "Add")
+};
+
+USTRUCT(BlueprintType)
+struct FItemEffectApplyRequest
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	FItemEffectSpec Spec;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	FItemContext Context;
+
+	// Logical channel used by effect handlers (example: Movement.Speed).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	FName EffectChannel = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	EItemEffectStackPolicy StackPolicy = EItemEffectStackPolicy::RefreshDuration;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	EItemEffectAggregation Aggregation = EItemEffectAggregation::Multiply;
+
+	// Optional source key (used by ReplaceBySource policy).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Effect")
+	FName SourceKey = NAME_None;
+};
+
 USTRUCT(BlueprintType)
 struct FItemActiveEffect
 {
@@ -13,7 +55,13 @@ struct FItemActiveEffect
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
+	FGuid EffectId;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
 	FGameplayTag EffectTag;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
+	FName EffectChannel = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
 	float Magnitude = 1.0f;
@@ -26,6 +74,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
 	float EndTime = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
+	EItemEffectAggregation Aggregation = EItemEffectAggregation::Multiply;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
+	FName SourceKey = NAME_None;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnItemEffectsChanged);
@@ -44,11 +98,21 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Item System")
 	FOnItemEffectsChanged OnEffectsChanged;
 
-	UFUNCTION(BlueprintCallable, Category = "Item System")
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item System")
+	FGuid ApplyEffect(const FItemEffectApplyRequest& Request);
+
+	// Legacy helper kept for compatibility.
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item System")
 	void AddOrRefreshEffect(const FItemEffectSpec& Spec);
 
-	UFUNCTION(BlueprintCallable, Category = "Item System")
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item System")
 	void RemoveEffectByTag(FGameplayTag Tag);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item System")
+	bool RemoveEffectById(FGuid EffectId);
+
+	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "Item System")
+	int32 RemoveEffectsByChannel(FName EffectChannel);
 
 	UFUNCTION(BlueprintPure, Category = "Item System")
 	const TArray<FItemActiveEffect>& GetActiveEffects() const { return ActiveEffects; }
@@ -63,8 +127,8 @@ protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
-	TMap<FGameplayTag, FTimerHandle> EffectTimers;
+	TMap<FGuid, FTimerHandle> EffectTimers;
 
 	void BroadcastEffectsChanged();
-	void RemoveEffectInternal(FGameplayTag Tag);
+	void RemoveEffectInternal(FGuid EffectId);
 };

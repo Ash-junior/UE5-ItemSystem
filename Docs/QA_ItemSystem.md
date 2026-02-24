@@ -17,6 +17,9 @@ This checklist validates the features implemented in the ItemSystem plugin.
    3. Assign `ItemRegistryDataTable` on the manager (rows must reference `UItemDefinition` assets).
    4. Open your Pawn BP (for example `BP_ItemCharacter`).
    5. Add `InventoryComponent` if missing.
+   6. Add `ItemEffectHandlerComponent` if missing (required for any payload that routes via `IItemInterface::ApplyItemEffect`).
+   7. In the pawn's `ApplyItemEffect` implementation, forward the call to `ItemEffectHandlerComponent::HandleEffect`.
+   8. Optional — add `ItemEffectComponent` to the pawn if you want UI tracking of active effects (duration bars, etc.).
 5. Ensure cheat manager is wired:
    1. Open your PlayerController BP.
    2. Set `Cheat Manager Class` to `ItemCheatManager`.
@@ -176,19 +179,27 @@ This checklist validates the features implemented in the ItemSystem plugin.
 
 ## 10) UI Feedback (Active Effects)
 **Setup**
-1. Add `ItemEffectComponent` to the Pawn (BP component).
-2. In UI BP:
-   1. Bind to `OnEffectsChanged`.
-   2. Call `GetActiveEffects()`.
-3. Use `Payload_ModifySpeed` to add effects.
+1. Add `ItemEffectHandlerComponent` to the Pawn (required — handles effect application and timer management).
+2. Implement `ApplyItemEffect` on the pawn to forward to `ItemEffectHandlerComponent::HandleEffect`.
+3. Add `ItemEffectComponent` to the Pawn (optional — enables UI tracking; automatically updated by `ItemEffectHandlerComponent` when present).
+4. In UI BP:
+   1. Bind to `UItemEffectComponent::OnEffectsChanged`.
+   2. Call `GetActiveEffects()` to read the current list.
+5. Assign a `Payload_ModifySpeed`-based item definition for the test.
 
 **Steps**
-1. Apply Boost or Slow to the target.
-2. Observe UI list.
+1. Console: `Cheat_GiveItem Item.Test.SpeedBoost` (or any item using `Payload_ModifySpeed`).
+2. Activate the item — payload calls `IItemInterface::ApplyItemEffect` on the target.
+3. Observe the UI list while the effect is active.
+4. Wait for the duration to expire.
 
 **Expected**
-1. Effect appears on clients (replicated).
-2. Duration decreases and effect disappears at expiry.
+1. `ItemEffectHandlerComponent` applies the speed multiplier immediately on the server.
+2. If `ItemEffectComponent` is present, the effect entry appears on all clients (replicated).
+3. On expiry, `ItemEffectHandlerComponent` restores the original speed and removes the effect from `ItemEffectComponent`.
+4. With QA logs (`ItemSystem.QA 1`):
+   1. `QA: Speed effect applied — tag: ..., multiplier: ..., base: ... -> new: ...`
+   2. `QA: Speed effect expired — speed restored to ...`
 
 ---
 
