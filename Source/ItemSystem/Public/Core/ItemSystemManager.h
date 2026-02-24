@@ -60,6 +60,11 @@ protected:
     UPROPERTY()
     TMap<UClass*, FItemActorPool> ActorPools;
 
+    // Maximum number of inactive actors kept in the pool per execution class.
+    // Actors returned to a full pool are destroyed immediately.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pooling", meta = (ClampMin = "1"))
+    int32 MaxPoolSizePerClass = 8;
+
 public:
     // --- Public API ---
 

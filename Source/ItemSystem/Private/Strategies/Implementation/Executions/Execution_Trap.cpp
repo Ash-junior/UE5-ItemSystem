@@ -27,6 +27,22 @@ AExecution_Trap::AExecution_Trap()
 void AExecution_Trap::ResetForReuse()
 {
 	bHasTriggered = false;
+
+	// Re-arm the lifespan timer for the new use cycle (was cancelled by ReleaseExecutionActor).
+	if (LifeSpanSeconds > 0.0f)
+	{
+		SetLifeSpan(LifeSpanSeconds);
+	}
+
+	// Clear the previous instigator from the ignore list and register the new one.
+	if (TriggerComponent)
+	{
+		TriggerComponent->MoveIgnoreActors.Reset();
+		if (ItemContext.Instigator)
+		{
+			TriggerComponent->MoveIgnoreActors.Add(ItemContext.Instigator);
+		}
+	}
 }
 
 void AExecution_Trap::BeginPlay()

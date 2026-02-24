@@ -43,6 +43,47 @@ AExecution_Projectile::AExecution_Projectile()
 void AExecution_Projectile::ResetForReuse()
 {
 	bHasExploded = false;
+
+	// Re-arm the safety lifespan timer (was cancelled by ReleaseExecutionActor).
+	SetLifeSpan(10.0f);
+
+	if (ProjectileMovement)
+	{
+		// Stop any residual velocity from the previous flight.
+		ProjectileMovement->StopMovementImmediately();
+
+		// Re-apply config values (same class = same defaults, but explicit for clarity).
+		ProjectileMovement->InitialSpeed = Speed;
+		ProjectileMovement->MaxSpeed = Speed;
+		ProjectileMovement->ProjectileGravityScale = GravityScale;
+
+		// Clear homing state from the previous use.
+		ProjectileMovement->bIsHomingProjectile = false;
+		ProjectileMovement->HomingAccelerationMagnitude = HomingAcceleration;
+		ProjectileMovement->HomingTargetComponent = nullptr;
+	}
+
+	// Clear the previous instigator from the ignore list and register the new one.
+	if (CollisionComponent)
+	{
+		CollisionComponent->MoveIgnoreActors.Reset();
+		if (ItemContext.Instigator)
+		{
+			CollisionComponent->MoveIgnoreActors.Add(ItemContext.Instigator);
+		}
+	}
+
+	// Re-acquire homing target for the new context if required.
+	if (bIsHoming && TargetingInstance && ProjectileMovement)
+	{
+		AActor* FoundTarget = TargetingInstance->FindTarget(ItemContext, GetActorLocation());
+		if (FoundTarget)
+		{
+			ProjectileMovement->bIsHomingProjectile = true;
+			ProjectileMovement->HomingAccelerationMagnitude = HomingAcceleration;
+			ProjectileMovement->HomingTargetComponent = FoundTarget->GetRootComponent();
+		}
+	}
 }
 
 void AExecution_Projectile::BeginPlay()

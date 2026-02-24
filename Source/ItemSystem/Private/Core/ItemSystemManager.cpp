@@ -245,10 +245,24 @@ void UItemSystemManager::AddToPool(AItemExecutionStrategy* Actor)
     }
 
     FItemActorPool& Pool = ActorPools.FindOrAdd(Actor->GetClass());
+
+    // Enforce pool size limit: destroy the actor if the pool is already full.
+    if (Pool.InactiveActors.Num() >= MaxPoolSizePerClass)
+    {
+        if (IsItemSystemQAEnabled())
+        {
+            UE_LOG(LogItemSystem, Log, TEXT("QA: Pool full (%d/%d) — destroying %s"),
+                Pool.InactiveActors.Num(), MaxPoolSizePerClass, *Actor->GetName());
+        }
+        Actor->Destroy();
+        return;
+    }
+
     Pool.InactiveActors.Add(Actor);
     if (IsItemSystemQAEnabled())
     {
-        UE_LOG(LogItemSystem, Log, TEXT("QA: Added actor to pool %s"), *Actor->GetName());
+        UE_LOG(LogItemSystem, Log, TEXT("QA: Added actor to pool %s (%d/%d)"),
+            *Actor->GetName(), Pool.InactiveActors.Num(), MaxPoolSizePerClass);
     }
 }
 
@@ -263,6 +277,9 @@ void UItemSystemManager::ReleaseExecutionActor(AItemExecutionStrategy* Actor)
     Actor->SetActorEnableCollision(false);
     Actor->SetActorHiddenInGame(true);
     Actor->SetActorTickEnabled(false);
+
+    // Cancel any pending SetLifeSpan auto-destroy so the pooled actor isn't silently destroyed.
+    Actor->SetLifeSpan(0.0f);
 
     AddToPool(Actor);
 }
