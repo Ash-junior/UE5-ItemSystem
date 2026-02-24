@@ -8,6 +8,7 @@ Saved/
 .vs/
 .idea/
 .vscode/
+.claude/
 *.suo
 *.user
 *.opensdf
