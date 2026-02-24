@@ -134,13 +134,14 @@ void AExecution_Projectile::ApplyArcThrow()
 	const FVector SpawnLoc = GetActorLocation();
 	const float EffectiveGravityZ = GetWorld()->GetGravityZ() * GravityScale;
 
-	FVector SuggestedVelocity;
-	const bool bSuccess = UGameplayStatics::SuggestProjectileVelocity(
-		this, SuggestedVelocity,
-		SpawnLoc, AimPoint, Speed,
-		bFavorHighArc, 0.0f, EffectiveGravityZ,
-		ESuggestProjVelocityTraceOption::DoNotTrace);
+	UGameplayStatics::FSuggestProjectileVelocityParameters SuggestParams(this, SpawnLoc, AimPoint, Speed);
+	SuggestParams.bFavorHighArc    = bFavorHighArc;
+	SuggestParams.OverrideGravityZ = EffectiveGravityZ;
+	SuggestParams.TraceOption      = ESuggestProjVelocityTraceOption::DoNotTrace;
 
+	FVector SuggestedVelocity;
+	const bool bSuccess = UGameplayStatics::SuggestProjectileVelocity(SuggestParams, SuggestedVelocity);
+	
 	if (bSuccess)
 	{
 		ProjectileMovement->Velocity = SuggestedVelocity;
