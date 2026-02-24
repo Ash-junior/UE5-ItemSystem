@@ -154,7 +154,25 @@ protected:
     UPROPERTY(ReplicatedUsing = OnRep_AssignedItem, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<UItemDefinition> AssignedItem = nullptr;
 
+    // After a successful grant, no actor can pick up from this spawn point until this delay has passed.
+    // Set to 0 to disable. Independent from respawn time.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup Cooldown",
+        meta = (ClampMin = "0.0", ForceUnits = "s"))
+    float PickupCooldownSeconds = 0.0f;
+
+    // After a specific actor picks up from this spawn point, that actor cannot pick up again
+    // until this delay has passed. Set to 0 to disable.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Spawn|Pickup Cooldown",
+        meta = (ClampMin = "0.0", ForceUnits = "s"))
+    float PerActorPickupCooldownSeconds = 0.0f;
+
     // Server-only guard: set synchronously when a consume is in flight to prevent
     // a second overlap event in the same frame from issuing a duplicate grant.
     bool bPendingConsume = false;
+
+    // Server-only: world time of the last successful grant (for spawn-point-wide cooldown).
+    float LastPickupWorldTime = -1.0f;
+
+    // Server-only: per-actor last pickup timestamp keyed by stable object identity.
+    TMap<FObjectKey, float> ActorLastPickupTimes;
 };

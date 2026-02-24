@@ -13,6 +13,7 @@
 #include "Components/TextRenderComponent.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
+#include "UObject/ObjectKey.h"
 
 AItemSpawnPoint::AItemSpawnPoint()
 {
@@ -202,6 +203,23 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
         return;
     }
 
+    const float Now = GetWorld()->GetTimeSeconds();
+
+    // Spawn-point-wide cooldown: block all actors until the delay has elapsed.
+    if (PickupCooldownSeconds > 0.0f && LastPickupWorldTime >= 0.0f)
+    {
+        const float Remaining = PickupCooldownSeconds - (Now - LastPickupWorldTime);
+        if (Remaining > 0.0f)
+        {
+            if (IsItemSystemQAEnabled())
+            {
+                UE_LOG(LogItemSystem, Log, TEXT("QA: SpawnPoint %s pickup cooldown blocked %s (%.1fs remaining)."),
+                    *GetName(), *GetNameSafe(OtherActor), Remaining);
+            }
+            return;
+        }
+    }
+
     AActor* RecipientActor = ResolveRecipientActor(OtherActor);
     UInventoryComponent* RecipientInventory = FindRecipientInventory(RecipientActor);
     if (!RecipientInventory)
@@ -215,10 +233,38 @@ void AItemSpawnPoint::HandlePickupTriggerBeginOverlap(
         return;
     }
 
+    // Per-actor cooldown: block this specific recipient until their individual delay has elapsed.
+    if (PerActorPickupCooldownSeconds > 0.0f)
+    {
+        if (const float* LastTime = ActorLastPickupTimes.Find(FObjectKey(RecipientActor)))
+        {
+            const float Remaining = PerActorPickupCooldownSeconds - (Now - *LastTime);
+            if (Remaining > 0.0f)
+            {
+                if (IsItemSystemQAEnabled())
+                {
+                    UE_LOG(LogItemSystem, Log, TEXT("QA: SpawnPoint %s per-actor cooldown blocked %s (%.1fs remaining)."),
+                        *GetName(), *GetNameSafe(RecipientActor), Remaining);
+                }
+                return;
+            }
+        }
+    }
+
     // Lock synchronously before the grant so any further overlap in the same frame is blocked.
     if (PickupRoutingSettings.bConsumeOnSuccessfulGrant)
     {
         bPendingConsume = true;
+    }
+
+    // Record timestamps before the grant so cooldowns are enforced even if the grant fails silently.
+    if (PickupCooldownSeconds > 0.0f)
+    {
+        LastPickupWorldTime = Now;
+    }
+    if (PerActorPickupCooldownSeconds > 0.0f)
+    {
+        ActorLastPickupTimes.FindOrAdd(FObjectKey(RecipientActor)) = Now;
     }
 
     RecipientInventory->Server_GrantItem(AssignedItem, ResolvePickupGrantAmount());
