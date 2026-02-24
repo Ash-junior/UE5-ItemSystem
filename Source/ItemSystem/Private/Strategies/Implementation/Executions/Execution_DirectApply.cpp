@@ -9,8 +9,19 @@
 
 void AExecution_DirectApply::BeginPlay()
 {
-    Super::BeginPlay();
+    Super::BeginPlay(); // Creates TargetingInstance and PayloadInstance
+    Execute();
+}
 
+void AExecution_DirectApply::ResetForReuse()
+{
+    // PayloadInstance and TargetingInstance from BeginPlay are still valid
+    // (pool groups actors by class, so the same payload type is always reused).
+    Execute();
+}
+
+void AExecution_DirectApply::Execute()
+{
     if (!HasAuthority())
     {
         return;
@@ -60,11 +71,6 @@ void AExecution_DirectApply::BeginPlay()
 
     PlayImpactFX(ImpactLocation);
     FinishExecution();
-}
-
-void AExecution_DirectApply::ResetForReuse()
-{
-    // Stateless execution.
 }
 
 void AExecution_DirectApply::ResolveRecipients(TArray<AActor*>& OutRecipients) const

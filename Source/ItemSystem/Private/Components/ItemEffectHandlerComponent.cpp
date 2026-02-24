@@ -55,14 +55,20 @@ void UItemEffectHandlerComponent::ApplySpeedEffect_Implementation(float Multipli
 		return;
 	}
 
-	// Capture base speed only on the first application (no active effect running)
+	// Capture base speed only when no effect is currently active
 	if (!bHasBaseSpeed)
 	{
 		BaseSpeed = MoveComp->MaxWalkSpeed;
 		bHasBaseSpeed = true;
 	}
 
-	MoveComp->MaxWalkSpeed = BaseSpeed * Multiplier;
+	// Register this effect instance with a unique ID
+	FActiveSpeedEffect& NewEffect = ActiveSpeedEffects.AddDefaulted_GetRef();
+	NewEffect.EffectID = NextSpeedEffectID++;
+	NewEffect.Tag = EffectTag;
+	NewEffect.Multiplier = Multiplier;
+
+	RecalculateAndApplySpeed();
 
 	if (IsItemSystemQAEnabled())
 	{
@@ -74,42 +80,85 @@ void UItemEffectHandlerComponent::ApplySpeedEffect_Implementation(float Multipli
 	{
 		if (UWorld* World = GetWorld())
 		{
-			World->GetTimerManager().SetTimer(
-				SpeedTimerHandle,
-				this,
-				&UItemEffectHandlerComponent::OnSpeedEffectExpired,
-				Duration,
-				false);
+			FTimerDelegate Delegate;
+			Delegate.BindUObject(this, &UItemEffectHandlerComponent::OnSpeedEffectExpiredByID, NewEffect.EffectID);
+			World->GetTimerManager().SetTimer(NewEffect.TimerHandle, Delegate, Duration, false);
 		}
 	}
 }
 
-void UItemEffectHandlerComponent::OnSpeedEffectExpired()
+void UItemEffectHandlerComponent::RecalculateAndApplySpeed()
 {
 	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character)
+	if (!Character || !bHasBaseSpeed)
 	{
 		return;
 	}
 
 	UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement();
-	if (MoveComp && bHasBaseSpeed)
+	if (!MoveComp)
 	{
-		MoveComp->MaxWalkSpeed = BaseSpeed;
+		return;
+	}
+
+	float Combined = 1.0f;
+	for (const FActiveSpeedEffect& Effect : ActiveSpeedEffects)
+	{
+		Combined *= Effect.Multiplier;
+	}
+
+	MoveComp->MaxWalkSpeed = BaseSpeed * Combined;
+}
+
+void UItemEffectHandlerComponent::OnSpeedEffectExpiredByID(uint32 EffectID)
+{
+	const int32 Index = ActiveSpeedEffects.IndexOfByPredicate(
+		[EffectID](const FActiveSpeedEffect& Effect) { return Effect.EffectID == EffectID; });
+
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+
+	ActiveSpeedEffects.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+
+	if (ActiveSpeedEffects.IsEmpty())
+	{
+		// All effects gone — restore base speed
+		ACharacter* Character = Cast<ACharacter>(GetOwner());
+		if (Character)
+		{
+			if (UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
+			{
+				MoveComp->MaxWalkSpeed = BaseSpeed;
+
+				if (IsItemSystemQAEnabled())
+				{
+					UE_LOG(LogItemSystem, Log, TEXT("QA: Speed effect expired — speed restored to %.1f"), BaseSpeed);
+				}
+			}
+		}
+
+		bHasBaseSpeed = false;
+		BaseSpeed = 0.0f;
+
+		if (UItemEffectComponent* EffectComp = FindEffectComponent())
+		{
+			EffectComp->RemoveEffectByTag(SpeedEffectParentTag);
+		}
+	}
+	else
+	{
+		// Other effects remain — recalculate combined speed
+		RecalculateAndApplySpeed();
 
 		if (IsItemSystemQAEnabled())
 		{
-			UE_LOG(LogItemSystem, Log, TEXT("QA: Speed effect expired — speed restored to %.1f"), BaseSpeed);
+			ACharacter* Character = Cast<ACharacter>(GetOwner());
+			UCharacterMovementComponent* MoveComp = Character ? Character->GetCharacterMovement() : nullptr;
+			UE_LOG(LogItemSystem, Log, TEXT("QA: Speed effect expired — %d effect(s) remaining, speed: %.1f"),
+				ActiveSpeedEffects.Num(), MoveComp ? MoveComp->MaxWalkSpeed : 0.0f);
 		}
-	}
-
-	bHasBaseSpeed = false;
-	BaseSpeed = 0.0f;
-
-	// Clear UI
-	if (UItemEffectComponent* EffectComp = FindEffectComponent())
-	{
-		EffectComp->RemoveEffectByTag(SpeedEffectParentTag);
 	}
 }
 

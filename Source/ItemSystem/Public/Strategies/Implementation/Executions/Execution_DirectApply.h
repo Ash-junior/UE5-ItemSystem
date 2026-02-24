@@ -18,6 +18,10 @@ protected:
     virtual void BeginPlay() override;
     virtual void ResetForReuse() override;
 
+    // Core execution logic — called from both BeginPlay (fresh spawn) and ResetForReuse (pool reuse).
+    // NOTE: Blueprint subclasses that override ResetForReuse must NOT call Super to avoid double execution.
+    void Execute();
+
 private:
     void ResolveRecipients(TArray<AActor*>& OutRecipients) const;
     void AddTargetingRecipientIfValid(TArray<AActor*>& OutRecipients) const;
