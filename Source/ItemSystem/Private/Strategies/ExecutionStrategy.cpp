@@ -109,7 +109,7 @@ void AItemExecutionStrategy::PlaySpawnEffects()
     if (TrailVFX)
     {
         // Deactivate the previous trail component so it doesn't linger after reuse.
-        if (ActiveTrailVFX && !ActiveTrailVFX->IsPendingKillOrUnreachable())
+        if (IsValid(ActiveTrailVFX))
         {
             ActiveTrailVFX->DeactivateImmediate();
         }
