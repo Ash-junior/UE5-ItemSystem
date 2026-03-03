@@ -28,6 +28,9 @@ void UInventoryComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
     
     // Replicate Ammo only to the owner (others don't need to know exact count)
     DOREPLIFETIME_CONDITION(UInventoryComponent, CurrentAmmo, COND_OwnerOnly);
+
+    // Replicate LastActivationTime to owner so the client can drive the cooldown UI.
+    DOREPLIFETIME_CONDITION(UInventoryComponent, LastActivationTime, COND_OwnerOnly);
 }
 
 void UInventoryComponent::BeginPlay()
@@ -123,6 +126,47 @@ void UInventoryComponent::Server_TryActivateItem_Implementation()
     // 5. Update UI/Visuals
     OnRep_CurrentItem();
 }
+
+// ---------------------------------------------------------------------------
+// Cooldown UI helpers
+
+float UInventoryComponent::GetCooldownProgress() const
+{
+    if (!CurrentItem || CurrentItem->Cooldown <= 0.0f)
+    {
+        return 1.0f;
+    }
+
+    const UWorld* World = GetWorld();
+    const float Now = World ? World->GetTimeSeconds() : 0.0f;
+    return FMath::Clamp((Now - LastActivationTime) / CurrentItem->Cooldown, 0.0f, 1.0f);
+}
+
+float UInventoryComponent::GetCooldownRemainingTime() const
+{
+    if (!CurrentItem || CurrentItem->Cooldown <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    const UWorld* World = GetWorld();
+    const float Now = World ? World->GetTimeSeconds() : 0.0f;
+    return FMath::Max(0.0f, CurrentItem->Cooldown - (Now - LastActivationTime));
+}
+
+bool UInventoryComponent::IsOnCooldown() const
+{
+    if (!CurrentItem || CurrentItem->Cooldown <= 0.0f)
+    {
+        return false;
+    }
+
+    const UWorld* World = GetWorld();
+    const float Now = World ? World->GetTimeSeconds() : 0.0f;
+    return (Now - LastActivationTime) < CurrentItem->Cooldown;
+}
+
+// ---------------------------------------------------------------------------
 
 bool UInventoryComponent::CanUseItem() const
 {

@@ -36,8 +36,9 @@ protected:
     UPROPERTY(Replicated, BlueprintReadOnly, Category = "Inventory")
     int32 CurrentAmmo;
 
-    // Last time the current item was activated (server time)
-    UPROPERTY()
+    // Last time the current item was activated (server time).
+    // Replicated to owner so the client can drive the cooldown progress bar.
+    UPROPERTY(Replicated)
     float LastActivationTime = -FLT_MAX;
 
     // --- Components ---
@@ -77,6 +78,20 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "Inventory")
     int32 GetCurrentAmmo() const { return CurrentAmmo; }
+
+    // ------------------------------------------------------------------ Cooldown UI
+
+    // Returns 0 (just activated / blocked) to 1 (ready). Always 1 when there is no cooldown.
+    UFUNCTION(BlueprintPure, Category = "Inventory|Cooldown")
+    float GetCooldownProgress() const;
+
+    // Returns seconds remaining until the item is ready again. 0 when ready.
+    UFUNCTION(BlueprintPure, Category = "Inventory|Cooldown")
+    float GetCooldownRemainingTime() const;
+
+    // True while the item is on cooldown and cannot be activated.
+    UFUNCTION(BlueprintPure, Category = "Inventory|Cooldown")
+    bool IsOnCooldown() const;
 
     /**
      * [Server Only] Clears current item and ammo.
