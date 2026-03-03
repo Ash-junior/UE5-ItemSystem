@@ -90,6 +90,9 @@ void AExecution_Projectile::ResetForReuse()
 	}
 
 	ApplyLaunchMode();
+
+	// Replay spawn VFX/sound inherited from the base class.
+	Super::ResetForReuse();
 }
 
 // ---------------------------------------------------------------------------

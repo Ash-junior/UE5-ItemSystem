@@ -123,7 +123,9 @@ void UItemEffectComponent::RemoveEffectByTag(FGameplayTag Tag)
 	TArray<FGuid> ToRemove;
 	for (const FItemActiveEffect& Effect : ActiveEffects)
 	{
-		if (Effect.EffectTag == Tag)
+		// MatchesTag covers child tags: removing "Item.Effect.ModifySpeed" also removes
+		// "Item.Effect.ModifySpeed.Boost", etc.
+		if (Effect.EffectTag.MatchesTag(Tag))
 		{
 			ToRemove.Add(Effect.EffectId);
 		}

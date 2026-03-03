@@ -80,6 +80,30 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Effect")
 	FName SourceKey = NAME_None;
+
+	// ------------------------------------------------------------------ UI helpers (C++ only — use UItemEffectBlueprintLibrary for BP access)
+
+	// Returns how far along the effect is, from 0 (just applied) to 1 (expired).
+	// Returns 1 for permanent effects (Duration <= 0).
+	float GetNormalizedProgress(float CurrentTime) const
+	{
+		if (Duration <= 0.0f || EndTime <= 0.0f)
+		{
+			return 1.0f;
+		}
+		return FMath::Clamp((CurrentTime - StartTime) / Duration, 0.0f, 1.0f);
+	}
+
+	// Returns seconds remaining before the effect expires.
+	// Returns -1 for permanent effects (Duration <= 0).
+	float GetRemainingTime(float CurrentTime) const
+	{
+		if (EndTime <= 0.0f)
+		{
+			return -1.0f;
+		}
+		return FMath::Max(0.0f, EndTime - CurrentTime);
+	}
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnItemEffectsChanged);

@@ -43,6 +43,9 @@ void AExecution_Trap::ResetForReuse()
 			TriggerComponent->MoveIgnoreActors.Add(ItemContext.Instigator);
 		}
 	}
+
+	// Replay spawn VFX/sound inherited from the base class.
+	Super::ResetForReuse();
 }
 
 void AExecution_Trap::BeginPlay()

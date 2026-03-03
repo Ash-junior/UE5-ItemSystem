@@ -30,7 +30,10 @@ AItemExecutionStrategy::AItemExecutionStrategy()
 
 void AItemExecutionStrategy::ResetForReuse()
 {
-    // Default does nothing. Child classes can override to reset state.
+    // Replay spawn sound and trail VFX so pooled actors behave identically to
+    // freshly spawned ones. Derived classes should call Super::ResetForReuse()
+    // at the END of their override, after resetting all state.
+    PlaySpawnEffects();
 }
 
 void AItemExecutionStrategy::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -81,23 +84,7 @@ void AItemExecutionStrategy::BeginPlay()
     }    
 
     // 4. Spawn Audio & VFX
-    if (SpawnSound)
-    {
-        UGameplayStatics::PlaySoundAtLocation(this, SpawnSound, GetActorLocation());
-    }
-
-    if (TrailVFX)
-    {
-        UNiagaraFunctionLibrary::SpawnSystemAttached(
-            TrailVFX,
-            RootComponent,
-            NAME_None,
-            FVector::ZeroVector,
-            FRotator::ZeroRotator,
-            EAttachLocation::SnapToTarget,
-            true
-        );
-    }
+    PlaySpawnEffects();
     
     // 5. Ignore Instigator Collision (Optional but recommended)
     // Needs a PrimitiveComponent (Mesh/Sphere) to work, usually added in Blueprint children.
@@ -110,6 +97,33 @@ void AItemExecutionStrategy::BeginPlay()
         }
     }
     */
+}
+
+void AItemExecutionStrategy::PlaySpawnEffects()
+{
+    if (SpawnSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, SpawnSound, GetActorLocation());
+    }
+
+    if (TrailVFX)
+    {
+        // Deactivate the previous trail component so it doesn't linger after reuse.
+        if (ActiveTrailVFX && !ActiveTrailVFX->IsPendingKillOrUnreachable())
+        {
+            ActiveTrailVFX->DeactivateImmediate();
+        }
+
+        ActiveTrailVFX = UNiagaraFunctionLibrary::SpawnSystemAttached(
+            TrailVFX,
+            RootComponent,
+            NAME_None,
+            FVector::ZeroVector,
+            FRotator::ZeroRotator,
+            EAttachLocation::SnapToTarget,
+            true
+        );
+    }
 }
 
 void AItemExecutionStrategy::FinishExecution()

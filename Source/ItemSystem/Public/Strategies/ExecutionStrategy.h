@@ -6,6 +6,7 @@
 #include "ExecutionStrategy.generated.h"
 
 class UNiagaraSystem;
+class UNiagaraComponent;
 class USoundBase;
 
 class UItemTargetingStrategy;
@@ -48,6 +49,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Effects")
 	USoundBase* ImpactSound;
 	
+	// Active trail VFX component — tracked so it can be deactivated on pool reuse.
+	UPROPERTY()
+	UNiagaraComponent* ActiveTrailVFX = nullptr;
+
 	// Instances created at runtime based on the ItemDefinition
 	UPROPERTY()
 	UItemTargetingStrategy* TargetingInstance;
@@ -82,4 +87,8 @@ protected:
 
 	// Helper: should the item affect the other actor (team/immunity/context)
 	bool ShouldAffectActor(AActor* OtherActor) const;
+
+	// Plays spawn sound and (re)attaches trail VFX. Called from BeginPlay and
+	// from the base ResetForReuse so pooled actors replay effects on reuse.
+	void PlaySpawnEffects();
 };

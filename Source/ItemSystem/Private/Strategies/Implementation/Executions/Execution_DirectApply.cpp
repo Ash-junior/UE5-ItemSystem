@@ -17,6 +17,8 @@ void AExecution_DirectApply::ResetForReuse()
 {
     // PayloadInstance and TargetingInstance from BeginPlay are still valid
     // (pool groups actors by class, so the same payload type is always reused).
+    // Base class replays spawn VFX/sound before execution runs.
+    Super::ResetForReuse();
     Execute();
 }
 
