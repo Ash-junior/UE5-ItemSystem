@@ -1060,3 +1060,248 @@ This section validates the three launch modes introduced on `AExecution_Projecti
 
 5. **Second pool reuse keeps old velocity**
    - `ResetForReuse` calls `StopMovementImmediately()` then `ApplyLaunchMode()`. If a BP child of `Execution_Projectile` overrides `ResetForReuse` without calling `Super`, neither runs. Ensure `Super::ResetForReuse()` is called.
+
+---
+
+## 15) Widget UI Reference — Buffs/Debuffs, Inventory, Cooldown
+
+This section validates the Blueprint API exposed by the plugin for driving in-game HUD widgets. The plugin does not ship a widget asset — the game project creates its own. This section describes how to wire it correctly and verifies each data path end-to-end.
+
+### 15.1 Vocabulary
+
+- **BFL** — `UItemEffectBlueprintLibrary` (static helper functions callable from any BP widget).
+- **EffectComp** — `UItemEffectComponent` on the pawn (replicated UI tracking).
+- **InvComp** — `UInventoryComponent` on the pawn.
+- **ServerTime** — `GetServerWorldTimeSeconds()` from `GameState`, used as the time reference for all progress calculations to stay synchronised across clients.
+
+### 15.2 One-Time Setup
+
+1. Open the pawn BP (or the character used in tests).
+2. Confirm the following components are present:
+   - `InventoryComponent`
+   - `ItemEffectHandlerComponent`
+   - `ItemEffectComponent` (enables replicated UI tracking)
+3. Confirm `ApplyItemEffect` on the pawn forwards to `ItemEffectHandlerComponent::HandleEffect`.
+4. Create a HUD widget BP (`WBP_ItemHUD`) with three sections:
+   - **Buff/debuff panel** — a vertical/horizontal box populated at runtime.
+   - **Inventory slot** — an image (icon) and a text block (ammo count).
+   - **Cooldown bar** — a `UProgressBar` and an optional countdown text.
+5. In `WBP_ItemHUD` — `Event Construct`:
+   - Get the owning pawn → `GetComponentByClass(ItemEffectComponent)` → store as `EffectComp`.
+   - Bind `EffectComp.OnEffectsChanged` → `RefreshEffects` (custom event).
+   - Get the owning pawn → `GetComponentByClass(InventoryComponent)` → store as `InvComp`.
+   - Bind `InvComp.OnInventoryChanged` → `RefreshInventory` (custom event).
+6. Enable QA logs: `ItemSystem.QA 1`.
+7. Use an item definition with `Payload_ModifySpeed` (`SpeedMultiplier = 0.5`, `Duration = 8.0`, `EffectTag = Item.Effect.ModifySpeed.Slow`) for effect tests. Call it `DA_Item_SpeedSlow`.
+8. Use an item definition with `Cooldown = 5.0` and `MaxStack = 3` for cooldown/inventory tests.
+
+---
+
+### 15.3 Buffs/Debuffs — Basic Display and Expiry
+
+**Goal** — verify the widget reflects effect state in real time and clears on expiry.
+
+**Steps**
+1. PIE, open the widget.
+2. Console: `Cheat_GiveItem Item.Test.SpeedSlow`.
+3. Activate the item (effect duration 8 s).
+4. In `RefreshEffects`, call:
+   - `EffectComp.GetActiveEffects()` → iterate.
+   - For each `FItemActiveEffect`, call `BFL.GetEffectNormalizedProgress(Effect, GameState.GetServerWorldTimeSeconds())`.
+   - Print or drive a progress bar with the result.
+5. Observe the bar value change over 8 seconds.
+6. Wait for expiry.
+
+**Expected**
+1. `OnEffectsChanged` fires on activation — widget rebuilds the panel.
+2. Progress bar starts near `0.0` and increases toward `1.0` over 8 seconds.
+3. On expiry, `OnEffectsChanged` fires again — `GetActiveEffects()` returns empty — panel clears.
+
+---
+
+### 15.4 Buffs/Debuffs — GetEffectRemainingTime (Countdown Text)
+
+**Goal** — verify the remaining-time helper returns a correctly decreasing value.
+
+**Steps**
+1. Apply `DA_Item_SpeedSlow` (8 s duration).
+2. In a Tick-driven update (or a timer polling every 0.2 s), call:
+   - `BFL.GetEffectRemainingTime(Effect, GameState.GetServerWorldTimeSeconds())`.
+   - Display the result in a text block as `F"{Value | 0.0}" s`.
+3. Observe the countdown.
+
+**Expected**
+1. Immediately after activation: value is approximately `8.0`.
+2. After 4 s: value is approximately `4.0`.
+3. On expiry: value is `0.0`.
+4. For a permanent effect (`Duration = 0`): the function returns `-1.0` — the widget should treat this as "no countdown".
+
+---
+
+### 15.5 Buffs/Debuffs — GetEffectsByTag (Parent Tag Filter)
+
+**Goal** — verify `GetEffectsByTag` correctly returns child-tagged effects when queried with a parent tag.
+
+**Setup**
+1. Apply an effect using `EffectTag = Item.Effect.ModifySpeed.Slow` (child tag).
+
+**Steps**
+1. Call `BFL.GetEffectsByTag(EffectComp, "Item.Effect.ModifySpeed")`.
+2. Log the count and tag of each returned entry.
+
+**Expected**
+1. The array contains 1 entry with `EffectTag = Item.Effect.ModifySpeed.Slow`.
+2. The parent tag query (`Item.Effect.ModifySpeed`) matched the child tag via hierarchical matching.
+
+---
+
+### 15.6 Buffs/Debuffs — HasActiveEffect
+
+**Goal** — verify the boolean presence check works for conditional widget visibility.
+
+**Steps**
+1. Before any effect is active: call `BFL.HasActiveEffect(EffectComp, "Item.Effect.ModifySpeed")` → log result.
+2. Apply `DA_Item_SpeedSlow` → call again → log result.
+3. Wait for expiry → call again → log result.
+
+**Expected**
+1. Before apply: `false`.
+2. During effect: `true`.
+3. After expiry: `false`.
+
+---
+
+### 15.7 Buffs/Debuffs — Replication to All Clients
+
+**Goal** — verify `OnEffectsChanged` fires on non-owning clients so all players can see each other's status.
+
+**Setup** — PIE with 2 players (Listen Server). `ItemEffectComponent` present on pawn. Widget displayed on both windows.
+
+**Steps**
+1. Player 1 (server) activates `DA_Item_SpeedSlow` on their pawn.
+2. Observe both windows.
+3. Wait for expiry.
+
+**Expected**
+1. `OnEffectsChanged` fires on both windows.
+2. The effect entry appears in both widgets during the effect.
+3. Both widgets clear on expiry.
+
+---
+
+### 15.8 Inventory — Item Icon and Name
+
+**Goal** — verify `OnInventoryChanged` supplies the widget with the new item reference.
+
+**Steps**
+1. In `RefreshInventory(Item, NewAmmo)`:
+   - Set the icon image from `Item.Visuals.Icon`.
+   - Set a name text from `Item.DisplayName`.
+   - Set the ammo text from `NewAmmo`.
+2. Console: `Cheat_GiveItem Item.Test.Cooldown 3` (MaxStack = 3, so 3 ammo granted).
+3. Observe the widget.
+4. Console: `Cheat_ClearInventory`.
+5. Observe the widget.
+
+**Expected**
+1. On grant: icon, name, and ammo count (`3`) appear in the widget.
+2. `InvComp.GetCurrentItem()` returns the correct `UItemDefinition`.
+3. On clear: `OnInventoryChanged` fires with `Item = null, NewAmmo = 0` — widget blanks out.
+
+---
+
+### 15.9 Inventory — Ammo Decrement on Use
+
+**Goal** — verify the ammo counter decrements correctly as the item is consumed.
+
+**Steps**
+1. Grant 3 ammo: `Cheat_GiveItem Item.Test.Cooldown 3`.
+2. Activate the item once → observe ammo.
+3. Activate again → observe ammo.
+4. Activate a third time → observe ammo and item slot.
+
+**Expected**
+1. After 1st use: ammo = `2`.
+2. After 2nd use: ammo = `1`.
+3. After 3rd use: ammo = `0`, `CurrentItem = null` — widget clears.
+
+---
+
+### 15.10 Cooldown — Progress Bar (Owner Client)
+
+**Goal** — verify `GetCooldownProgress` returns `0→1` over the cooldown duration on the owning client.
+
+**Setup**
+1. Use the cooldown test item (`Cooldown = 5.0`).
+2. In a timer polling every 0.1 s, call `InvComp.GetCooldownProgress()` and drive a `UProgressBar`.
+
+**Steps**
+1. Activate the item.
+2. Observe the progress bar value over 5 seconds.
+3. Observe `IsOnCooldown()` and `GetCooldownRemainingTime()` in parallel.
+
+**Expected**
+1. Immediately after activation: `GetCooldownProgress() ≈ 0.0`, `IsOnCooldown() = true`, `GetCooldownRemainingTime() ≈ 5.0`.
+2. After 2.5 s: `GetCooldownProgress() ≈ 0.5`, `GetCooldownRemainingTime() ≈ 2.5`.
+3. After 5 s: `GetCooldownProgress() = 1.0`, `IsOnCooldown() = false`, `GetCooldownRemainingTime() = 0.0`.
+4. With no item equipped (`CurrentItem = null`): all three return `1.0 / false / 0.0` respectively (no cooldown state).
+
+---
+
+### 15.11 Cooldown — Not Replicated to Non-Owners (by Design)
+
+**Goal** — confirm that `LastActivationTime` is owner-only and non-owner clients cannot read the cooldown.
+
+**Setup** — PIE with 2 players. Widget on Player 2 reads Player 1's `InventoryComponent`.
+
+**Steps**
+1. Player 1 activates item (starts 5 s cooldown).
+2. Immediately call `GetCooldownProgress()` on Player 1's `InvComp` from Player 2's widget.
+
+**Expected**
+1. On Player 2's client, `GetCooldownProgress()` returns `1.0` (cooldown appears ready) because `LastActivationTime` was not replicated to non-owners.
+2. This is correct behaviour — cooldown UI should only be displayed on the owning player's screen.
+3. No crash.
+
+---
+
+### 15.12 Pass/Fail Checklist
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | `OnEffectsChanged` fires on effect apply and expiry | |
+| 2 | `GetEffectNormalizedProgress` returns `0→1` over duration | |
+| 3 | `GetEffectRemainingTime` counts down correctly; returns `-1` for permanent effects | |
+| 4 | `GetEffectsByTag` with parent tag matches child-tagged effects | |
+| 5 | `HasActiveEffect` returns correct bool before, during, after | |
+| 6 | `OnEffectsChanged` replicates to all clients | |
+| 7 | `OnInventoryChanged` delivers icon, name, ammo | |
+| 8 | Ammo count decrements and widget clears on depletion | |
+| 9 | `GetCooldownProgress` transitions `0→1` over `Cooldown` seconds | |
+| 10 | `IsOnCooldown` and `GetCooldownRemainingTime` consistent with progress | |
+| 11 | Cooldown UI correct on owner; not visible on non-owners (by design) | |
+
+---
+
+### 15.13 Common Misconfiguration
+
+1. **`OnEffectsChanged` never fires**
+   - Verify `ItemEffectComponent` is on the pawn (not just `ItemEffectHandlerComponent`).
+   - Verify `SetIsReplicatedByDefault(true)` is set in the constructor (already the default).
+   - Verify `ApplyItemEffect` on the pawn calls `HandleEffect`, which calls `EffectComp->AddOrRefreshEffect`.
+
+2. **Effect stays in widget after expiry**
+   - Verify `RemoveEffectByTag` uses `MatchesTag` (fixed in the plugin — if you see a stale entry, rebuild the project).
+   - Verify `OnEffectsChanged` is actually bound in the widget and `GetActiveEffects()` is called fresh on each callback.
+
+3. **Progress bar stuck at 0 or 1**
+   - Verify `ServerTime` source: use `GameState->GetServerWorldTimeSeconds()`, not `GetWorld()->GetTimeSeconds()` — on clients the latter may diverge.
+   - Verify `StartTime` and `EndTime` on `FItemActiveEffect` are non-zero (they are set from `World->GetTimeSeconds()` server-side; if `Duration = 0` the effect is permanent and progress is always `1.0`).
+
+4. **Cooldown progress bar not updating on the owning client**
+   - `LastActivationTime` is replicated `COND_OwnerOnly`. Verify the pawn is correctly owned (Net Owner set on server).
+   - Verify `GetCooldownProgress()` is called from a polling mechanism (Tick or recurring timer) — it is not event-driven.
+
+5. **Cooldown progress bar working on server window but not client window**
+   - Same as point 4. Ensure the widget is reading from the locally-owned pawn's `InventoryComponent`, not a remote one.
+   - Use `GetOwningPlayerController()->GetPawn()` in the widget to guarantee the local pawn reference.
