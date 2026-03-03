@@ -64,10 +64,20 @@ void AExecution_Projectile::ResetForReuse()
 
 	if (ProjectileMovement)
 	{
-		ProjectileMovement->StopMovementImmediately();
+		// UProjectileMovementComponent::StopSimulating() (called internally on blocking hits
+		// when bShouldBounce=false) sets UpdatedComponent=nullptr, disconnecting the component
+		// from the sphere. Without restoring this link, the component activates but has
+		// nothing to move and the projectile stays frozen at the socket.
+		ProjectileMovement->SetUpdatedComponent(CollisionComponent);
+
+		// Zero velocity directly rather than StopMovementImmediately(), which calls
+		// SetActive(false) and would prevent the velocity set in ApplyLaunchMode from being processed.
+		ProjectileMovement->Velocity = FVector::ZeroVector;
+		ProjectileMovement->UpdateComponentVelocity();
 		ProjectileMovement->InitialSpeed = Speed;
 		ProjectileMovement->MaxSpeed = Speed;
 		ProjectileMovement->ProjectileGravityScale = GravityScale;
+		ProjectileMovement->SetActive(true);
 	}
 
 	if (CollisionComponent)
@@ -123,6 +133,9 @@ void AExecution_Projectile::ApplyArcThrow()
 	{
 		Params.AddIgnoredActor(ItemContext.Instigator);
 	}
+	// Ignore the projectile itself: its sphere is at SpawnLoc and would return
+	// ImpactPoint ≈ SpawnLoc, collapsing the aim direction to a zero vector.
+	Params.AddIgnoredActor(this);
 
 	FVector AimPoint = TraceEnd;
 	if (GetWorld()->LineTraceSingleByChannel(Hit, ViewLoc, TraceEnd, ECC_Visibility, Params))
@@ -141,15 +154,22 @@ void AExecution_Projectile::ApplyArcThrow()
 
 	FVector SuggestedVelocity;
 	const bool bSuccess = UGameplayStatics::SuggestProjectileVelocity(SuggestParams, SuggestedVelocity);
-	
+
 	if (bSuccess)
 	{
 		ProjectileMovement->Velocity = SuggestedVelocity;
 	}
 	else
 	{
-		// Target unreachable at this speed — shoot straight toward aim point.
-		const FVector Dir = (AimPoint - SpawnLoc).GetSafeNormal();
+		// Target unreachable at this speed — launch toward the aim point at full speed
+		// and let gravity produce a natural arc (projectile will fall short).
+		FVector Dir = (AimPoint - SpawnLoc).GetSafeNormal();
+		if (Dir.IsNearlyZero())
+		{
+			// Degenerate aim point (e.g. character pressed against a surface):
+			// fall back to the actor's forward vector so the projectile always launches.
+			Dir = GetActorForwardVector();
+		}
 		ProjectileMovement->Velocity = Dir * Speed;
 
 		if (IsItemSystemQAEnabled())
