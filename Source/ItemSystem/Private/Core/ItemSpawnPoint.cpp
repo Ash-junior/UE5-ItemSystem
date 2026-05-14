@@ -11,6 +11,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/BillboardComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "NiagaraComponent.h"
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/ObjectKey.h"
@@ -27,6 +28,10 @@ AItemSpawnPoint::AItemSpawnPoint()
     ItemPreviewMesh->SetupAttachment(SceneRoot);
     ItemPreviewMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     ItemPreviewMesh->SetGenerateOverlapEvents(false);
+
+    SpawnVFXComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("SpawnVFXComponent"));
+    SpawnVFXComponent->SetupAttachment(SceneRoot);
+    SpawnVFXComponent->SetAutoActivate(true);
 
     PickupTrigger = CreateDefaultSubobject<USphereComponent>(TEXT("PickupTrigger"));
     PickupTrigger->SetupAttachment(SceneRoot);

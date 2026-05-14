@@ -7,6 +7,7 @@
 #include "Engine/ActorChannel.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/GameStateBase.h"
+#include "Kismet/GameplayStatics.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -51,7 +52,12 @@ void UInventoryComponent::OnRep_CurrentItem()
 {
     // When the server updates the item, update the visuals on the client
     UpdateVisuals(CurrentItem != nullptr);
-    
+
+    if (CurrentItem && CurrentItem->Sound_OnEquip)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, CurrentItem->Sound_OnEquip, GetOwner()->GetActorLocation());
+    }
+
     // Notify UI
     if (OnInventoryChanged.IsBound())
     {
@@ -114,16 +120,22 @@ void UInventoryComponent::Server_TryActivateItem_Implementation()
         return;
     }
 
-    // 4. Handle Ammo Consumption
+    // 4. Play activation sound on all clients
+    if (CurrentItem->Sound_OnActivate && GetOwner())
+    {
+        Multicast_PlayActivateSound(CurrentItem->Sound_OnActivate, GetOwner()->GetActorLocation());
+    }
+
+    // 5. Handle Ammo Consumption
     CurrentAmmo--;
     LastActivationTime = GetWorld() ? GetWorld()->GetTimeSeconds() : LastActivationTime;
-    
+
     if (CurrentAmmo <= 0)
     {
         CurrentItem = nullptr; // Item depleted
     }
 
-    // 5. Update UI/Visuals
+    // 6. Update UI/Visuals
     OnRep_CurrentItem();
 }
 
@@ -252,6 +264,14 @@ FItemContext UInventoryComponent::MakeItemContext() const
     }
 
     return Context;
+}
+
+void UInventoryComponent::Multicast_PlayActivateSound_Implementation(USoundBase* Sound, FVector Location)
+{
+    if (Sound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, Sound, Location);
+    }
 }
 
 void UInventoryComponent::UpdateVisuals(bool bVisible)

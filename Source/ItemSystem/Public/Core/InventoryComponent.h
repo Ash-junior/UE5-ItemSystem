@@ -8,6 +8,7 @@
 
 class UItemDefinition;
 class UStaticMeshComponent;
+class USoundBase;
 
 // Delegate used to notify UI or other systems when ammo changes
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnInventoryChanged, UItemDefinition*, Item, int32, NewAmmo);
@@ -98,6 +99,10 @@ public:
      */
     UFUNCTION(BlueprintCallable, Server, Reliable, Category = "Inventory")
     void Server_ClearInventory();
+
+protected:
+    UFUNCTION(NetMulticast, Unreliable)
+    void Multicast_PlayActivateSound(USoundBase* Sound, FVector Location);
 
 protected:
     // --- Internal Logic ---
