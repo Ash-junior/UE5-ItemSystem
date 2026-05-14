@@ -81,13 +81,64 @@ This document lists recommended presets for core gameplay tests.
 
 ---
 
-## 5) Tag Notes
+## 5) DA_Item_SelfSpeedBoost (Direct, buff sur soi)
+**Use**: applique un buff de vitesse instantané à l'instigateur lui-même, sans ciblage.
+
+**IdentityTags**
+- `Item.Test.Speed.Boost.Self`
+
+**Logic**
+- `ExecutionClass`: `Execution_DirectApply` *(C++ direct)*
+- `TargetingClass`: None
+- `PayloadClass`: `BP_Payload_SelfSpeedBoost`
+
+**Values (Payload BP)**
+- SpeedMultiplier = 1.5
+- Duration = 5.0
+- EffectTag = `Item.Effect.ModifySpeed.Boost`
+
+**PayloadRoutingSettings**
+- `RoutingPolicy`: `InstigatorOnly`
+- `bFallbackToInstigatorIfNoRecipient`: false
+
+> Pas de `Rule.Ignore.Teammates` — le chemin `InstigatorOnly` court-circuite `ShouldAffectActor`.
+> Guide complet : `Docs/Demo_ContentGuide.md`
+
+---
+
+## 6) DA_Item_EnemySlow (Direct + Raycast, slow sur ennemi)
+**Use**: slow ciblé par rayon sur un ennemi visé ; protégé contre le tir allié.
+
+**IdentityTags**
+- `Item.Test.Speed.Slow.Enemy`
+- `Rule.Ignore.Teammates`
+
+**Logic**
+- `ExecutionClass`: `Execution_DirectApply`
+- `TargetingClass`: `BP_Targeting_Raycast_EnemySlow` (TraceDistance = 5000)
+- `PayloadClass`: `BP_Payload_EnemySlow`
+
+**Values (Payload BP)**
+- SpeedMultiplier = 0.5
+- Duration = 3.0
+- EffectTag = `Item.Effect.ModifySpeed.Slow`
+
+**PayloadRoutingSettings**
+- `RoutingPolicy`: `TargetingResultOnly`
+- `bFallbackToInstigatorIfNoRecipient`: false
+
+> `Rule.Ignore.Teammates` bloque l'application si le raycast touche un allié (`ShouldAffectActor`).
+> Guide complet : `Docs/Demo_ContentGuide.md`
+
+---
+
+## 7) Tag Notes
 - Add `Rule.Ignore.Teammates` in `IdentityTags` to prevent friendly fire.
 - Use `UsageBlockingTags` for stun or other blocking states.
 
 ---
 
-## 6) DA_Item_SpeedBoost_DirectRouted
+## 8) DA_Item_SpeedBoost_DirectRouted
 **Use**: direct (non-projectile) speed boost routed to allies or enemies by rules.
 
 **IdentityTags**
