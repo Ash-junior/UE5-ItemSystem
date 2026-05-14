@@ -30,4 +30,9 @@ private:
 
     bool DoesActorMatchRoutingTag(AActor* Candidate, const FGameplayTag& RequiredTag) const;
     bool DoesActorMatchRoutingRelation(AActor* Candidate, EItemPayloadRecipientRelation Relation) const;
+
+    // Plays ImpactVFX/ImpactSound attached to the instigator pawn's pre-placed
+    // UNiagaraComponent (if present), with fallback to spawning at FallbackLocation.
+    UFUNCTION(NetMulticast, Unreliable)
+    void Multicast_PlayVFXOnInstigator(FVector FallbackLocation);
 };

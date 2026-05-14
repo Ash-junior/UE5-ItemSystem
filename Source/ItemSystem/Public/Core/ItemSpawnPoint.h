@@ -13,6 +13,7 @@ class USceneComponent;
 class USphereComponent;
 class UBillboardComponent;
 class UTextRenderComponent;
+class UNiagaraComponent;
 class UItemDefinition;
 class UItemDistributionPolicy;
 class AItemSpawnPoint;
@@ -111,6 +112,11 @@ protected:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn")
     TObjectPtr<UStaticMeshComponent> ItemPreviewMesh = nullptr;
+
+    // Optional looping VFX to display on the spawn point (e.g. pickup aura).
+    // Assign a Niagara system in the Blueprint subclass or per-actor details.
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn|Visuals")
+    TObjectPtr<UNiagaraComponent> SpawnVFXComponent = nullptr;
 
     // Trigger used to detect pickup on overlap.
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item Spawn")

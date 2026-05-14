@@ -6,6 +6,9 @@
 #include "EngineUtils.h"
 #include "Strategies/ItemPayloadStrategy.h"
 #include "Strategies/ItemTargetingStrategy.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 
 void AExecution_DirectApply::BeginPlay()
 {
@@ -71,7 +74,10 @@ void AExecution_DirectApply::Execute()
             *GetNameSafe(ItemContext.ItemDefinition));
     }
 
-    PlayImpactFX(ImpactLocation);
+    const FVector FallbackLoc = ItemContext.Instigator
+        ? ItemContext.Instigator->GetActorLocation()
+        : GetActorLocation();
+    Multicast_PlayVFXOnInstigator(FallbackLoc);
     FinishExecution();
 }
 
@@ -264,4 +270,38 @@ bool AExecution_DirectApply::DoesActorMatchRoutingRelation(AActor* Candidate, EI
     }
 
     return true;
+}
+
+void AExecution_DirectApply::Multicast_PlayVFXOnInstigator_Implementation(FVector FallbackLocation)
+{
+    if (ImpactSound)
+    {
+        const FVector SoundLoc = ItemContext.Instigator
+            ? ItemContext.Instigator->GetActorLocation()
+            : FallbackLocation;
+        UGameplayStatics::PlaySoundAtLocation(this, ImpactSound, SoundLoc);
+    }
+
+    if (!ImpactVFX)
+    {
+        return;
+    }
+
+    // Try to activate a UNiagaraComponent pre-placed on the instigator pawn.
+    // This keeps the VFX attached and following the pawn's movement.
+    if (ItemContext.Instigator)
+    {
+        if (UNiagaraComponent* PawnVFX = ItemContext.Instigator->FindComponentByClass<UNiagaraComponent>())
+        {
+            PawnVFX->SetAsset(ImpactVFX);
+            PawnVFX->Activate(true);
+            return;
+        }
+    }
+
+    // Fallback: no pre-placed component — spawn at current pawn position.
+    const FVector SpawnLoc = ItemContext.Instigator
+        ? ItemContext.Instigator->GetActorLocation()
+        : FallbackLocation;
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), ImpactVFX, SpawnLoc);
 }
