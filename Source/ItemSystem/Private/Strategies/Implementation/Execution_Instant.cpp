@@ -1,6 +1,7 @@
 #include "Strategies/Implementation/Execution_Instant.h"
 #include "Strategies/ItemTargetingStrategy.h"
 #include "Strategies/ItemPayloadStrategy.h"
+#include "GameFramework/Actor.h"
 
 void AExecution_Instant::BeginPlay()
 {

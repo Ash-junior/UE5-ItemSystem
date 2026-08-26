@@ -1,6 +1,7 @@
 #include "Strategies/Implementation/Payloads/Payload_Damage.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/Actor.h"
 
 void UPayload_Damage::ApplyEffect_Implementation(AActor* Target, const FItemContext& Context)
 {

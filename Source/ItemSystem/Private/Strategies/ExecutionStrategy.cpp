@@ -12,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 AItemExecutionStrategy::AItemExecutionStrategy()
 {

@@ -5,6 +5,7 @@
 #include "Core/TargetableInterface.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
+#include "Engine/World.h"
 
 AActor* UTargeting_FindNearest::FindTarget_Implementation(const FItemContext& Context, FVector Origin)
 {

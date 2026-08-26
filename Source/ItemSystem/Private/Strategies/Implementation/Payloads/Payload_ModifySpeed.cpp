@@ -2,6 +2,7 @@
 
 #include "Core/ItemInterface.h"
 #include "GameplayTagsManager.h"
+#include "GameFramework/Actor.h"
 
 UPayload_ModifySpeed::UPayload_ModifySpeed()
 {

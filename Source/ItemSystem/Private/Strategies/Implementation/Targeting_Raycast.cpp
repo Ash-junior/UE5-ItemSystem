@@ -3,6 +3,7 @@
 #include "Core/TargetableInterface.h"
 #include "Data/ItemDefinition.h"
 #include "Engine/World.h"
+#include "Engine/HitResult.h"
 
 AActor* UTargeting_Raycast::FindTarget_Implementation(const FItemContext& Context, FVector Origin)
 {

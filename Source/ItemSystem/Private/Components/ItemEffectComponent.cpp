@@ -2,6 +2,8 @@
 #include "Core/ItemSystemLog.h"
 #include "Net/UnrealNetwork.h"
 #include "TimerManager.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 UItemEffectComponent::UItemEffectComponent()
 {

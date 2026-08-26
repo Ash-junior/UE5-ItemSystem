@@ -15,6 +15,8 @@
 #include "EngineUtils.h"
 #include "Net/UnrealNetwork.h"
 #include "UObject/ObjectKey.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
 
 AItemSpawnPoint::AItemSpawnPoint()
 {

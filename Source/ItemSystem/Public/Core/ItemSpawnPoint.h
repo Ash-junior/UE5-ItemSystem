@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
 #include "Core/ItemSpawnPointRoutingTypes.h"
+#include "Engine/HitResult.h"
 #include "ItemSpawnPoint.generated.h"
 
 class UInventoryComponent;

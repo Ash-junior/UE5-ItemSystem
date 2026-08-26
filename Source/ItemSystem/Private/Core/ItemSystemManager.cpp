@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "TimerManager.h"
+#include "GameFramework/Actor.h"
 
 UItemSystemManager::UItemSystemManager()
 {

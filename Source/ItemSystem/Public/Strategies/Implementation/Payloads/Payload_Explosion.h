@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Strategies/ItemPayloadStrategy.h"
+#include "GameFramework/DamageType.h"
 #include "Payload_Explosion.generated.h"
 
 /**

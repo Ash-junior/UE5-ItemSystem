@@ -1,6 +1,7 @@
 #include "Strategies/Implementation/Payloads/Payload_Explosion.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "GameFramework/Actor.h"
 
 void UPayload_Explosion::ApplyEffect_Implementation(AActor* Target, const FItemContext& Context)
 {

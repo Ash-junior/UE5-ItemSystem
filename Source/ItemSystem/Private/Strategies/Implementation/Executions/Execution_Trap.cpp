@@ -4,6 +4,9 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Strategies/ItemPayloadStrategy.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 
 AExecution_Trap::AExecution_Trap()
 {

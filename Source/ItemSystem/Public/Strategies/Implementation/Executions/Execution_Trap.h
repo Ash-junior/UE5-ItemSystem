@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Strategies/ExecutionStrategy.h"
+#include "Engine/HitResult.h"
 #include "Execution_Trap.generated.h"
 
 class USphereComponent;

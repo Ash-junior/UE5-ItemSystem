@@ -1,5 +1,6 @@
 #include "Strategies/Implementation/Payload_Debug.h"
 #include "Engine/Engine.h"
+#include "GameFramework/Actor.h"
 
 void UPayload_Debug::ApplyEffect_Implementation(AActor* Target, const FItemContext& Context)
 {

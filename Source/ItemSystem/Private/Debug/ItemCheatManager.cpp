@@ -7,6 +7,7 @@
 #include "GameplayTagContainer.h"
 #include "Strategies/ItemPayloadStrategy.h"
 #include "Engine/World.h"
+#include "Engine/HitResult.h"
 
 namespace
 {

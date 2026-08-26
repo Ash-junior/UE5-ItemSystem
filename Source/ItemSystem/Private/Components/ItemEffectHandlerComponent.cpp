@@ -1,5 +1,6 @@
 #include "Components/ItemEffectHandlerComponent.h"
 #include "Components/ItemEffectComponent.h"
+#include "GameFramework/Actor.h"
 
 UItemEffectHandlerComponent::UItemEffectHandlerComponent()
 {
