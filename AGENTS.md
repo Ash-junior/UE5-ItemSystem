@@ -28,7 +28,7 @@ Cheat_SimulateImpact Item.Test.SkillShot       # Apply payload to camera raycast
 Cheat_ClearInventory                           # Clear current inventory
 ```
 
-Set `CheatManagerClass = ItemCheatManager` on the PlayerController BP to enable these. See `Docs/QA_ItemSystem.md` for a full test checklist and `Docs/Presets_ItemDefinitions.md` for reference item presets.
+Set `CheatManagerClass = ItemCheatManager` on the PlayerController BP to enable these. See the **QA Checklist** and **Item Presets** sections of `CLAUDE.md` for the full test procedures and reference item configurations (`Docs/QA_ItemSystem.md` and `Docs/Presets_ItemDefinitions.md` were merged into it).
 
 ## Content Structure
 
@@ -57,7 +57,7 @@ UInventoryComponent (Pawn)
 
 ### Core Types (`Public/Core/`, `Public/Data/`)
 
-- **`UItemDefinition`** — Primary data asset per item. Holds identity tags, blocking tags, cooldown, visuals (`FItemVisuals`), `MaxStack`, `PickupGrantAmount`, and soft class refs to execution/targeting/payload. Also stores `FItemPayloadRoutingSettings` for direct-apply routing.
+- **`UItemDefinition`** — Primary data asset per item. Holds identity tags, blocking tags, cooldown, visuals (`FItemVisuals`), `MaxStack`, `PickupGrantAmount`, and soft class refs to execution/targeting/payload. Also stores `FItemPayloadRoutingSettings` for direct-apply routing. Audio: `Sound_OnEquip` (played on all clients when the item is granted) and `Sound_OnActivate` (played on all clients when the item is used).
 - **`FItemContext`** — Universal struct flowing through the entire pipeline: instigator actor/controller, target actor, origin transform, item definition, context tags, random seed, invocation GUID.
 - **`FItemEffectSpec`** — Lightweight effect descriptor: `EffectTag`, `Magnitude`, `Duration`.
 
@@ -76,7 +76,7 @@ Static accessor: `UItemSystemManager::Get(WorldContextObject)`.
 `AItemExecutionStrategy` — abstract base Actor, pooled by the manager. Subclasses:
 - `Execution_Projectile` — Moving projectile with collision.
 - `Execution_Trap` — Static trigger (mine/trap) with lifespan.
-- `Execution_DirectApply` — No physical actor; applies payload immediately using `FItemPayloadRoutingSettings` to resolve recipients (by team relation, tag, nearest/all-matching search).
+- `Execution_DirectApply` — No physical actor; applies payload immediately using `FItemPayloadRoutingSettings` to resolve recipients (by team relation, tag, nearest/all-matching search). VFX/SFX play on the instigator pawn: it looks for a pre-placed `UNiagaraComponent` on the pawn and activates it, so the effect follows the pawn. Falls back to spawning at the pawn location if no component is found.
 - `Execution_Instant` — Simple immediate apply.
 
 All carry `FItemContext` (replicated), trail/impact VFX (`UNiagaraSystem`), and impact SFX. `FinishExecution()` returns the actor to the pool. `ShouldAffectActor()` enforces team filtering (`Rule.Ignore.Teammates` identity tag) and immunity (`ITargetableInterface`).
@@ -102,20 +102,27 @@ Pawns must implement **`IItemInterface`**:
 
 Added to the Pawn. Holds one item + ammo count (both replicated). Server RPCs: `Server_GrantItem`, `Server_TryActivateItem`, `Server_ClearInventory`. Fires `OnInventoryChanged` delegate for UI. Manages `HeldMeshComponent` (item preview mesh on pawn) via `OnRep_CurrentItem`.
 
+Sound behaviour:
+- `Sound_OnEquip` plays on all clients via `OnRep_CurrentItem` (RepNotify fires on grant).
+- `Sound_OnActivate` plays on all clients via `Multicast_PlayActivateSound` (called from the server on successful activation).
+
 ### World Spawn System (`Public/Core/ItemSpawnPoint.h`)
 
 `AItemSpawnPoint` — placed in level, registered to the manager. Contains:
 - `USphereComponent` (PickupTrigger) — overlap-based pickup.
 - `UStaticMeshComponent` (ItemPreviewMesh) — shows assigned item mesh.
+- `UNiagaraComponent` (SpawnVFXComponent) — optional looping VFX (e.g. pickup aura). Assign a Niagara system in the Blueprint subclass or per-actor Details panel.
 - Editor-only `UBillboardComponent` + `UTextRenderComponent` for identification.
 
 Pickup routing is controlled by `FItemSpawnPointPickupRoutingSettings` propagated from the manager's `UItemSpawnPointRoutingConfig` data asset. Grant amount priority: **SpawnPoint local override > manager routing config override > `UItemDefinition::PickupGrantAmount`**. `RecipientPolicy` options: `OverlappingActorOnly`, `OverlapActorIfHasTagElseDesignated`, `DesignatedActorOnly`.
 
 ### Effect System (`Public/Components/`)
 
-Two-component design for timed stat effects (e.g. speed boost/slow):
-1. **`UItemEffectHandlerComponent`** — Pre-attached to the pawn. Receives `FItemEffectSpec` via `HandleEffect()`, routes by `EffectTag`, manages timers, and applies the effect directly to the pawn. Each apply function (e.g. `ApplySpeedEffect`) is a `BlueprintNativeEvent` and can be overridden per project. Optionally notifies `UItemEffectComponent` for UI.
-2. **`UItemEffectComponent`** — Optional, for UI tracking only. Holds a replicated `TArray<FItemActiveEffect>`. Fires `OnEffectsChanged` delegate on server and clients. Written to by `UItemEffectHandlerComponent` when present; bind to it in UI BPs via `GetActiveEffects()`.
+Two-component design for timed stat effects:
+1. **`UItemEffectHandlerComponent`** — Pre-attached to the pawn. Entry point: `HandleEffect(FItemEffectSpec, FItemContext)` — a `BlueprintNativeEvent` that returns `false` by default. Create a Blueprint subclass and override `HandleEffect` to implement project-specific effect types (speed, shields, etc.). Optionally reads a sibling `UItemEffectComponent` for UI.
+2. **`UItemEffectComponent`** — Optional, for UI tracking only. Holds a replicated `TArray<FItemActiveEffect>`. Fires `OnEffectsChanged` delegate on server and clients.
+
+> **Speed handling** — There is no built-in C++ speed implementation. Add a Blueprint component to your pawn to handle `Item.Effect.ModifySpeed` effects and manipulate `CharacterMovementComponent::MaxWalkSpeed` there.
 
 Payload flow: `Payload_ModifySpeed` builds an `FItemEffectSpec` and calls `IItemInterface::Execute_ApplyItemEffect` on the target. The pawn's implementation forwards to `UItemEffectHandlerComponent::HandleEffect`.
 
@@ -139,7 +146,10 @@ Payload flow: `Payload_ModifySpeed` builds an `FItemEffectSpec` and calls `IItem
 ### Replication Notes
 
 - All item grant/activation is **server-authoritative** (Server RPCs).
-- `UInventoryComponent.CurrentItem` uses `RepNotify` to update visuals on clients.
+- `UInventoryComponent.CurrentItem` uses `RepNotify` to update visuals and play the equip sound on clients.
+- `UInventoryComponent.LastActivationTime` is `COND_OwnerOnly` — cooldown UI visible only to the owning player.
 - `AItemSpawnPoint.AssignedItem` uses `RepNotify` to refresh preview mesh on clients.
 - `UItemEffectComponent.ActiveEffects` is replicated; `OnEffectsChanged` fires on both server and clients after `OnRep`.
+- Execution actors carry a replicated `FItemContext`; impact VFX/SFX are fired via `NetMulticast Unreliable`.
+- `Execution_DirectApply` VFX use `Multicast_PlayVFXOnInstigator` to find and activate the pawn's pre-placed `UNiagaraComponent` on all clients.
 - Execution actors carry a replicated `FItemContext`; impact VFX/SFX are fired via `NetMulticast Unreliable`.
