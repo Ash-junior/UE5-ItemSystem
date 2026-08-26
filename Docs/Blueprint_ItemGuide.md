@@ -28,15 +28,15 @@ Complete step-by-step guide for implementing 10 items in Blueprint using the Ite
 
 ### Plugin classes involved
 
-| Class | Role |
-|---|---|
-| `AExecution_DirectApply` | Applies effect immediately to routed recipients (no physics actor) |
-| `AExecution_Projectile` | Thrown/fired projectile — triggers payload on hit/overlap |
-| `AExecution_Trap` | Stationary mine — triggers payload on proximity overlap |
-| `UItemPayloadStrategy` | `ApplyEffect(Target, Context)` — what happens to the target |
+| Class                         | Role                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| `AExecution_DirectApply`      | Applies effect immediately to routed recipients (no physics actor)           |
+| `AExecution_Projectile`       | Thrown/fired projectile — triggers payload on hit/overlap                    |
+| `AExecution_Trap`             | Stationary mine — triggers payload on proximity overlap                      |
+| `UItemPayloadStrategy`        | `ApplyEffect(Target, Context)` — what happens to the target                  |
 | `UItemEffectHandlerComponent` | Component on the Pawn — receives `FItemEffectSpec` and dispatches the effect |
-| `FItemEffectSpec` | `{EffectTag, Magnitude, Duration}` — the routed effect descriptor |
-| `FItemContext` | Universal context bag passed through the whole pipeline |
+| `FItemEffectSpec`             | `{EffectTag, Magnitude, Duration}` — the routed effect descriptor            |
+| `FItemContext`                | Universal context bag passed through the whole pipeline                      |
 
 ### Effect routing flow
 
@@ -94,25 +94,26 @@ Name it `BP_ItemEffectHandlerComponent`.
 
 Add these variables to the component (all private, no replication needed — effects are applied server-authoritative and the pawn state drives visuals):
 
-| Name | Type | Default | Purpose |
-|---|---|---|---|
-| `OriginalMaxWalkSpeed` | Float | 600.0 | Cached before any speed modification |
-| `bShieldActive` | Boolean | false | True while shield is absorbing |
-| `bConfused` | Boolean | false | True while inputs are inverted |
-| `bPoisoned` | Boolean | false | True while jump is blocked |
-| `ShieldTimerHandle` | TimerHandle | — | Used to clear shield after duration |
-| `SpeedTimerHandle` | TimerHandle | — | Used to restore speed after boost |
-| `ConfusionTimerHandle` | TimerHandle | — | Used to clear confusion |
-| `StunTimerHandle` | TimerHandle | — | Used to clear stun |
-| `FreezeTimerHandle` | TimerHandle | — | Used to unfreeze |
-| `PoisonTimerHandle` | TimerHandle | — | Used to clear poison |
-| `TornadoAuraActor` | Actor Object Reference | — | Tracks the attached tornado actor |
+| Name                   | Type                   | Default | Purpose                              |
+| ---------------------- | ---------------------- | ------- | ------------------------------------ |
+| `OriginalMaxWalkSpeed` | Float                  | 600.0   | Cached before any speed modification |
+| `bShieldActive`        | Boolean                | false   | True while shield is absorbing       |
+| `bConfused`            | Boolean                | false   | True while inputs are inverted       |
+| `bPoisoned`            | Boolean                | false   | True while jump is blocked           |
+| `ShieldTimerHandle`    | TimerHandle            | —       | Used to clear shield after duration  |
+| `SpeedTimerHandle`     | TimerHandle            | —       | Used to restore speed after boost    |
+| `ConfusionTimerHandle` | TimerHandle            | —       | Used to clear confusion              |
+| `StunTimerHandle`      | TimerHandle            | —       | Used to clear stun                   |
+| `FreezeTimerHandle`    | TimerHandle            | —       | Used to unfreeze                     |
+| `PoisonTimerHandle`    | TimerHandle            | —       | Used to clear poison                 |
+| `TornadoAuraActor`     | Actor Object Reference | —       | Tracks the attached tornado actor    |
 
 ### 3.2 Override HandleEffect
 
 Override the `HandleEffect` BlueprintNativeEvent (it appears under **Override** in the functions panel).
 
 In the override graph:
+
 1. Call each sub-function in sequence, passing `Spec` and `Context`
 2. Return **OR** of all results (true if any handled it)
 
@@ -365,17 +366,17 @@ Override `CanJump` or in the Jump event:
 
 #### Data Asset: `DA_SpeedBoost`
 
-| Field | Value |
-|---|---|
-| Display Name | Speed Boost |
-| IdentityTags | `Item.Type.Utility` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| MaxStack | 1 |
-| Cooldown | 10.0 |
-| ExecutionClass | `Execution_DirectApply` |
-| TargetingClass | *(empty)* |
-| PayloadClass | `BP_Payload_SpeedBoost` |
-| PayloadRouting → RoutingPolicy | `InstigatorOnly` |
+| Field                          | Value                             |
+| ------------------------------ | --------------------------------- |
+| Display Name                   | Speed Boost                       |
+| IdentityTags                   | `Item.Type.Utility`               |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen` |
+| MaxStack                       | 1                                 |
+| Cooldown                       | 10.0                              |
+| ExecutionClass                 | `Execution_DirectApply`           |
+| TargetingClass                 | *(empty)*                         |
+| PayloadClass                   | `BP_Payload_SpeedBoost`           |
+| PayloadRouting → RoutingPolicy | `InstigatorOnly`                  |
 
 #### Blueprint: `BP_Payload_SpeedBoost`
 
@@ -402,17 +403,17 @@ No Execution or Targeting Blueprint needed — `Execution_DirectApply` + `Instig
 
 #### Data Asset: `DA_Bouclier`
 
-| Field | Value |
-|---|---|
-| Display Name | Bouclier |
-| IdentityTags | `Item.Type.Utility` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| MaxStack | 1 |
-| Cooldown | 15.0 |
-| ExecutionClass | `Execution_DirectApply` |
-| TargetingClass | *(empty)* |
-| PayloadClass | `BP_Payload_Bouclier` |
-| PayloadRouting → RoutingPolicy | `InstigatorOnly` |
+| Field                          | Value                             |
+| ------------------------------ | --------------------------------- |
+| Display Name                   | Bouclier                          |
+| IdentityTags                   | `Item.Type.Utility`               |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen` |
+| MaxStack                       | 1                                 |
+| Cooldown                       | 15.0                              |
+| ExecutionClass                 | `Execution_DirectApply`           |
+| TargetingClass                 | *(empty)*                         |
+| PayloadClass                   | `BP_Payload_Bouclier`             |
+| PayloadRouting → RoutingPolicy | `InstigatorOnly`                  |
 
 #### Blueprint: `BP_Payload_Bouclier`
 
@@ -445,15 +446,15 @@ Optionally: spawn a shield-break VFX at the pawn's location when the shield bloc
 
 #### Data Asset: `DA_MiniTornade`
 
-| Field | Value |
-|---|---|
-| Display Name | Mini Tornade |
-| IdentityTags | `Item.Type.Utility` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 12.0 |
-| ExecutionClass | `Execution_DirectApply` |
-| PayloadClass | `BP_Payload_MiniTornade` |
-| PayloadRouting → RoutingPolicy | `InstigatorOnly` |
+| Field                          | Value                             |
+| ------------------------------ | --------------------------------- |
+| Display Name                   | Mini Tornade                      |
+| IdentityTags                   | `Item.Type.Utility`               |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen` |
+| Cooldown                       | 12.0                              |
+| ExecutionClass                 | `Execution_DirectApply`           |
+| PayloadClass                   | `BP_Payload_MiniTornade`          |
+| PayloadRouting → RoutingPolicy | `InstigatorOnly`                  |
 
 #### Blueprint: `BP_Payload_MiniTornade`
 
@@ -471,10 +472,12 @@ Optionally: spawn a shield-break VFX at the pawn's location when the shield bloc
 Parent: `Actor`
 
 Components:
+
 - `SphereComponent` (radius 400, QueryOnly, overlaps Pawn channel, `GenerateOverlapEvents = true`)
 - `NiagaraComponent` (tornado VFX — auto-activate)
 
 Variables:
+
 - `RepulsionForce` (float) — set by the handler
 - `InstigatorRef` (Actor Object Reference)
 
@@ -506,18 +509,18 @@ Variables:
 
 #### Data Asset: `DA_Confusion`
 
-| Field | Value |
-|---|---|
-| Display Name | Confusion |
-| IdentityTags | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 10.0 |
-| ExecutionClass | `Execution_DirectApply` |
-| PayloadClass | `BP_Payload_Confusion` |
-| PayloadRouting → RoutingPolicy | `SearchByRules` |
-| PayloadRouting → RecipientRelation | `EnemyOfInstigator` |
-| PayloadRouting → SearchSelection | `AllMatching` |
-| PayloadRouting → SearchRadius | 800.0 |
+| Field                              | Value                                        |
+| ---------------------------------- | -------------------------------------------- |
+| Display Name                       | Confusion                                    |
+| IdentityTags                       | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags                  | `Status.Stunned`, `Status.Frozen`            |
+| Cooldown                           | 10.0                                         |
+| ExecutionClass                     | `Execution_DirectApply`                      |
+| PayloadClass                       | `BP_Payload_Confusion`                       |
+| PayloadRouting → RoutingPolicy     | `SearchByRules`                              |
+| PayloadRouting → RecipientRelation | `EnemyOfInstigator`                          |
+| PayloadRouting → SearchSelection   | `AllMatching`                                |
+| PayloadRouting → SearchRadius      | 800.0                                        |
 
 > `SearchByRules` with `AllMatching` causes `Execution_DirectApply` to find all enemies within 800 units and call `ApplyEffect` on each one automatically.
 
@@ -540,22 +543,23 @@ Variables:
 
 #### Data Asset: `DA_Boule`
 
-| Field | Value |
-|---|---|
-| Display Name | Boule |
-| IdentityTags | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 8.0 |
-| ExecutionClass | `BP_Execution_Boule` |
-| TargetingClass | *(empty)* |
-| PayloadClass | `BP_Payload_Boule` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                        |
+| ------------------------------ | -------------------------------------------- |
+| Display Name                   | Boule                                        |
+| IdentityTags                   | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`            |
+| Cooldown                       | 8.0                                          |
+| ExecutionClass                 | `BP_Execution_Boule`                         |
+| TargetingClass                 | *(empty)*                                    |
+| PayloadClass                   | `BP_Payload_Boule`                           |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                        |
 
 #### Blueprint: `BP_Execution_Boule`
 
 Parent: `AExecution_Projectile`
 
 In Class Defaults:
+
 - `LaunchMode` = `ArcThrow`
 - `Speed` = 2000.0
 - `GravityScale` = 1.0
@@ -565,6 +569,7 @@ In Class Defaults:
 - `ImpactVFX` = *(stun burst Niagara)*
 
 Add a `StaticMeshComponent` or `SphereComponent` as the collision root (required by the C++ parent for hit detection). Set:
+
 - Collision Preset: `Projectile`
 - Generate Overlap Events: true
 - Simulate Physics: false
@@ -596,26 +601,28 @@ In the VICTIM's handler component `Handle_Stun`, trigger a screen effect (e.g., 
 
 #### Data Asset: `DA_MineGlace`
 
-| Field | Value |
-|---|---|
-| Display Name | Mine de Glace |
-| IdentityTags | `Item.Type.Trap` ← deliberately NO `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 5.0 |
-| ExecutionClass | `BP_Execution_MineGlace` |
-| PayloadClass | `BP_Payload_MineGlace` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                                      |
+| ------------------------------ | ---------------------------------------------------------- |
+| Display Name                   | Mine de Glace                                              |
+| IdentityTags                   | `Item.Type.Trap` ← deliberately NO `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`                          |
+| Cooldown                       | 5.0                                                        |
+| ExecutionClass                 | `BP_Execution_MineGlace`                                   |
+| PayloadClass                   | `BP_Payload_MineGlace`                                     |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                                      |
 
 #### Blueprint: `BP_Execution_MineGlace`
 
 Parent: `AExecution_Trap`
 
 Class Defaults:
+
 - `TriggerRadius` = 180.0
 - `LifeSpanSeconds` = 30.0
 - `ImpactVFX` = *(ice burst Niagara)*
 
 Add components:
+
 - `StaticMeshComponent` (ice mine mesh, no collision)
 
 No event graph changes needed — the C++ trap handles the rest.
@@ -639,15 +646,15 @@ No event graph changes needed — the C++ trap handles the rest.
 
 #### Data Asset: `DA_MinePoison`
 
-| Field | Value |
-|---|---|
-| Display Name | Mine de Poison |
-| IdentityTags | `Item.Type.Trap`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 5.0 |
-| ExecutionClass | `BP_Execution_MinePoison` |
-| PayloadClass | `BP_Payload_MinePoison` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                     |
+| ------------------------------ | ----------------------------------------- |
+| Display Name                   | Mine de Poison                            |
+| IdentityTags                   | `Item.Type.Trap`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`         |
+| Cooldown                       | 5.0                                       |
+| ExecutionClass                 | `BP_Execution_MinePoison`                 |
+| PayloadClass                   | `BP_Payload_MinePoison`                   |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                     |
 
 > Remove `Rule.Ignore.Teammates` if you want the mine to also poison teammates.
 
@@ -656,6 +663,7 @@ No event graph changes needed — the C++ trap handles the rest.
 Parent: `AExecution_Trap`
 
 Class Defaults:
+
 - `TriggerRadius` = 200.0
 - `LifeSpanSeconds` = 30.0
 - `ImpactVFX` = *(green cloud Niagara)*
@@ -681,21 +689,22 @@ The payload handles the sphere search itself. `PayloadRouting = TargetingResultO
 
 #### Data Asset: `DA_MineExplosive`
 
-| Field | Value |
-|---|---|
-| Display Name | Mine Explosive |
-| IdentityTags | `Item.Type.Trap`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 5.0 |
-| ExecutionClass | `BP_Execution_MineExplosive` |
-| PayloadClass | `BP_Payload_MineExplosive` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                     |
+| ------------------------------ | ----------------------------------------- |
+| Display Name                   | Mine Explosive                            |
+| IdentityTags                   | `Item.Type.Trap`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`         |
+| Cooldown                       | 5.0                                       |
+| ExecutionClass                 | `BP_Execution_MineExplosive`              |
+| PayloadClass                   | `BP_Payload_MineExplosive`                |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                     |
 
 #### Blueprint: `BP_Execution_MineExplosive`
 
 Parent: `AExecution_Trap`
 
 Class Defaults:
+
 - `TriggerRadius` = 150.0
 - `LifeSpanSeconds` = 30.0
 - `ImpactVFX` = *(explosion Niagara — use SpawnSystemAtLocation)*
@@ -703,6 +712,7 @@ Class Defaults:
 #### Blueprint: `BP_Payload_MineExplosive`
 
 Variables:
+
 - `ExplosionRadius` (float) = 600.0
 - `KnockbackForce` (float) = 1200.0
 
@@ -747,21 +757,22 @@ BP_Execution_BombeRetardement (Projectile, ArcThrow)
 
 #### Data Asset: `DA_BombeRetardement`
 
-| Field | Value |
-|---|---|
-| Display Name | Bombe à Retardement |
-| IdentityTags | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 8.0 |
-| ExecutionClass | `BP_Execution_BombeRetardement` |
-| PayloadClass | `BP_Payload_BombeRetardement` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                        |
+| ------------------------------ | -------------------------------------------- |
+| Display Name                   | Bombe à Retardement                          |
+| IdentityTags                   | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`            |
+| Cooldown                       | 8.0                                          |
+| ExecutionClass                 | `BP_Execution_BombeRetardement`              |
+| PayloadClass                   | `BP_Payload_BombeRetardement`                |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                        |
 
 #### Blueprint: `BP_Execution_BombeRetardement`
 
 Parent: `AExecution_Projectile`
 
 Class Defaults:
+
 - `LaunchMode` = `ArcThrow`
 - `Speed` = 1600.0
 - `GravityScale` = 1.2
@@ -772,6 +783,7 @@ Add a visible mesh component (grenade mesh) for visual feedback.
 #### Blueprint: `BP_Payload_BombeRetardement`
 
 Variables:
+
 - `BombDelay` (float) = 3.0
 - `ExplosionRadius` (float) = 700.0
 - `KnockbackForce` (float) = 1400.0
@@ -796,10 +808,12 @@ Variables:
 Parent: `Actor`
 
 Components:
+
 - `StaticMeshComponent` (grenade/bomb mesh)
 - `NiagaraComponent` (ticking fuse VFX, auto-activate)
 
 Variables:
+
 - `Delay` (float) = 3.0
 - `ExplosionRadius` (float) = 700.0
 - `KnockbackForce` (float) = 1400.0
@@ -841,21 +855,22 @@ Variables:
 
 #### Data Asset: `DA_BombeTornade`
 
-| Field | Value |
-|---|---|
-| Display Name | Bombe à Tornade |
-| IdentityTags | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
-| UsageBlockingTags | `Status.Stunned`, `Status.Frozen` |
-| Cooldown | 12.0 |
-| ExecutionClass | `BP_Execution_BombeTornade` |
-| PayloadClass | `BP_Payload_BombeTornade` |
-| PayloadRouting → RoutingPolicy | `TargetingResultOnly` |
+| Field                          | Value                                        |
+| ------------------------------ | -------------------------------------------- |
+| Display Name                   | Bombe à Tornade                              |
+| IdentityTags                   | `Item.Type.Offense`, `Rule.Ignore.Teammates` |
+| UsageBlockingTags              | `Status.Stunned`, `Status.Frozen`            |
+| Cooldown                       | 12.0                                         |
+| ExecutionClass                 | `BP_Execution_BombeTornade`                  |
+| PayloadClass                   | `BP_Payload_BombeTornade`                    |
+| PayloadRouting → RoutingPolicy | `TargetingResultOnly`                        |
 
 #### Blueprint: `BP_Execution_BombeTornade`
 
 Parent: `AExecution_Projectile`
 
 Class Defaults:
+
 - `LaunchMode` = `ArcThrow`
 - `Speed` = 1800.0
 - `GravityScale` = 0.8
@@ -865,6 +880,7 @@ Class Defaults:
 #### Blueprint: `BP_Payload_BombeTornade`
 
 Variables:
+
 - `TornadoDuration` (float) = 8.0
 - `TornadoRadius` (float) = 500.0
 - `RepulsionForce` (float) = 900.0
@@ -888,10 +904,12 @@ Variables:
 Parent: `Actor`
 
 Components:
+
 - `NiagaraComponent` (tornado VFX — looping, auto-activate)
 - `SphereComponent` (radius = TornadoRadius, QueryOnly, Pawn channel)
 
 Variables:
+
 - `RepulsionForce` (float) = 900.0
 - `TornadoRadius` (float) = 500.0
 - `InstigatorRef` (Actor Object Reference)
@@ -928,25 +946,27 @@ Variables:
 
 ## Summary Table
 
-| Item | Execution | Payload Routing | Effect Tag | Handler sub-function |
-|---|---|---|---|---|
-| Speed Boost | DirectApply | InstigatorOnly | `Item.Effect.SpeedBoost` | `Handle_SpeedBoost` |
-| Bouclier | DirectApply | InstigatorOnly | `Item.Effect.Shield` | `Handle_Shield` |
-| Mini Tornade | DirectApply | InstigatorOnly | `Item.Effect.TornadoAura` | `Handle_TornadoAura` |
-| Confusion | DirectApply | SearchByRules (AllMatching, Enemy, r=800) | `Item.Effect.Confusion` | `Handle_Confusion` |
-| Boule | Projectile (ArcThrow) | TargetingResultOnly | `Item.Effect.Stun` | `Handle_Stun` |
-| Mine de Glace | Trap | TargetingResultOnly | `Item.Effect.Freeze` | `Handle_Freeze` |
-| Mine de Poison | Trap | TargetingResultOnly | `Item.Effect.Poison` | `Handle_Poison` |
-| Mine Explosive | Trap (+ sphere in payload) | TargetingResultOnly | `Item.Effect.Knockback` | `Handle_Knockback` |
-| Bombe Retardement | Projectile (ArcThrow) | TargetingResultOnly | `Item.Effect.Knockback` (via BP_TimeBombActor) | `Handle_Knockback` |
-| Bombe Tornade | Projectile (ArcThrow) | TargetingResultOnly | `Item.Effect.Knockback` (via BP_TornadoActor_Static) | `Handle_Knockback` |
+| Item              | Execution                  | Payload Routing                           | Effect Tag                                           | Handler sub-function |
+| ----------------- | -------------------------- | ----------------------------------------- | ---------------------------------------------------- | -------------------- |
+| Speed Boost       | DirectApply                | InstigatorOnly                            | `Item.Effect.SpeedBoost`                             | `Handle_SpeedBoost`  |
+| Bouclier          | DirectApply                | InstigatorOnly                            | `Item.Effect.Shield`                                 | `Handle_Shield`      |
+| Mini Tornade      | DirectApply                | InstigatorOnly                            | `Item.Effect.TornadoAura`                            | `Handle_TornadoAura` |
+| Confusion         | DirectApply                | SearchByRules (AllMatching, Enemy, r=800) | `Item.Effect.Confusion`                              | `Handle_Confusion`   |
+| Boule             | Projectile (ArcThrow)      | TargetingResultOnly                       | `Item.Effect.Stun`                                   | `Handle_Stun`        |
+| Mine de Glace     | Trap                       | TargetingResultOnly                       | `Item.Effect.Freeze`                                 | `Handle_Freeze`      |
+| Mine de Poison    | Trap                       | TargetingResultOnly                       | `Item.Effect.Poison`                                 | `Handle_Poison`      |
+| Mine Explosive    | Trap (+ sphere in payload) | TargetingResultOnly                       | `Item.Effect.Knockback`                              | `Handle_Knockback`   |
+| Bombe Retardement | Projectile (ArcThrow)      | TargetingResultOnly                       | `Item.Effect.Knockback` (via BP_TimeBombActor)       | `Handle_Knockback`   |
+| Bombe Tornade     | Projectile (ArcThrow)      | TargetingResultOnly                       | `Item.Effect.Knockback` (via BP_TornadoActor_Static) | `Handle_Knockback`   |
 
 ---
 
 ## BP Actors Reference
 
-| Blueprint Actor | Parent | Purpose |
-|---|---|---|
-| `BP_TornadoActor_Attached` | Actor | Tornado attached to instigator pawn (Mini Tornade) |
-| `BP_TornadoActor_Static` | Actor | Tornado placed in world on impact (Bombe Tornade) |
-| `BP_TimeBombActor` | Actor | World actor with countdown timer (Bombe Retardement) |
+| Blueprint Actor            | Parent | Purpose                                              |
+| -------------------------- | ------ | ---------------------------------------------------- |
+| `BP_TornadoActor_Attached` | Actor  | Tornado attached to instigator pawn (Mini Tornade)   |
+| `BP_TornadoActor_Static`   | Actor  | Tornado placed in world on impact (Bombe Tornade)    |
+| `BP_TimeBombActor`         | Actor  | World actor with countdown timer (Bombe Retardement) |
+
+

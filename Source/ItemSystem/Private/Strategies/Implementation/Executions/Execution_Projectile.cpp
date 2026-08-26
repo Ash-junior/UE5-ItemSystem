@@ -8,6 +8,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "Strategies/ItemPayloadStrategy.h"
 #include "Core/ItemSystemLog.h"
+#include "Engine/HitResult.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 
 AExecution_Projectile::AExecution_Projectile()
 {
@@ -30,6 +33,13 @@ AExecution_Projectile::AExecution_Projectile()
 	ProjectileMovement->bShouldBounce = false;
 
 	SetReplicateMovement(true);
+}
+
+// ---------------------------------------------------------------------------
+
+float AExecution_Projectile::GetProjectileRadius() const
+{
+	return CollisionComponent ? CollisionComponent->GetScaledSphereRadius() : 0.0f;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,6 +122,19 @@ void AExecution_Projectile::ApplyArcThrow()
 {
 	if (!ProjectileMovement)
 	{
+		return;
+	}
+
+	if (ItemContext.bHasExternalLaunchVelocity)
+	{
+		ProjectileMovement->Velocity = ItemContext.LaunchVelocity;
+
+		const float VelMagnitude = ItemContext.LaunchVelocity.Size();
+		if (VelMagnitude > ProjectileMovement->MaxSpeed)
+		{
+			ProjectileMovement->MaxSpeed = VelMagnitude;
+		}
+
 		return;
 	}
 

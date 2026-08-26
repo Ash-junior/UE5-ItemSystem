@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Strategies/ExecutionStrategy.h"
+#include "Engine/HitResult.h"
 #include "Execution_Projectile.generated.h"
 
 class USphereComponent;
@@ -38,6 +39,24 @@ class ITEMSYSTEM_API AExecution_Projectile : public AItemExecutionStrategy
 
 public:
 	AExecution_Projectile();
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	EItemLaunchMode GetLaunchMode() const { return LaunchMode; }
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	float GetLaunchSpeed() const { return Speed; }
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	float GetGravityScale() const { return GravityScale; }
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	float GetArcTraceDistance() const { return ArcTraceDistance; }
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	bool ShouldFavorHighArc() const { return bFavorHighArc; }
+
+	UFUNCTION(BlueprintPure, Category = "Item System|Projectile")
+	float GetProjectileRadius() const;
 
 protected:
 	// Collision representation of the projectile

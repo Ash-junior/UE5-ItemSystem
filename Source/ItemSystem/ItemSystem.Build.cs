@@ -26,6 +26,8 @@ public class ItemSystem : ModuleRules
 			new string[]
 			{
 				"Core",
+				"CoreUObject",
+				"Engine",
 				"GameplayTags",
 				"GameplayTasks"
 			}
@@ -35,8 +37,6 @@ public class ItemSystem : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"CoreUObject",
-				"Engine",
 				"Slate",
 				"SlateCore", "Niagara",
 				// ... add private dependencies that you statically link with here ...	

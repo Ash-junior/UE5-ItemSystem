@@ -1,7 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Engine/EngineTypes.h"
 #include "GameplayTagContainer.h"
+#include "Engine/HitResult.h"
 #include "ItemSystemTypes.generated.h"
 
 // Forward declaration to avoid circular dependencies
@@ -81,15 +83,130 @@ public:
     UPROPERTY(BlueprintReadWrite, Category = "Context")
     FGuid InvocationGUID;
 
-    // Optional pre-computed launch velocity provided by an external throw system.
-    // Set bHasExternalLaunchVelocity = true and fill LaunchVelocity, then call
-    // Manager->SpawnItemExecution() directly — bypassing Server_TryActivateItem.
-    // Only consumed when Execution_Projectile is set to EItemLaunchMode::ExternalVelocity.
+    // Optional pre-computed launch velocity provided by an aim/throw system.
+    // Projectile executions consume it when bHasExternalLaunchVelocity is true.
     UPROPERTY(BlueprintReadWrite, Category = "Context")
     FVector LaunchVelocity = FVector::ZeroVector;
 
     UPROPERTY(BlueprintReadWrite, Category = "Context")
     bool bHasExternalLaunchVelocity = false;
+};
+
+/**
+ * Tunable values used by both aim preview and projectile launch calculation.
+ * Keeping these values in one struct prevents the displayed arc from drifting
+ * away from the velocity used by the spawned projectile.
+ */
+USTRUCT(BlueprintType)
+struct FItemProjectileArcParams
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    FVector StartLocation = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    FVector ViewLocation = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    FRotator ViewRotation = FRotator::ZeroRotator;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    FVector AimPoint = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc", meta = (ClampMin = "1.0"))
+    float Speed = 2000.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    float GravityScale = 1.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc", meta = (ClampMin = "100.0"))
+    float TraceDistance = 5000.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc", meta = (ClampMin = "0.0"))
+    float ProjectileRadius = 15.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc", meta = (ClampMin = "0.1"))
+    float MaxSimTime = 3.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc", meta = (ClampMin = "1.0"))
+    float SimFrequency = 15.0f;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    bool bFavorHighArc = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    bool bTraceWithCollision = true;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    TEnumAsByte<ECollisionChannel> TraceChannel = ECC_Visibility;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Projectile Arc")
+    TArray<AActor*> ActorsToIgnore;
+};
+
+/**
+ * Compact launch payload captured while aiming. Clients send this to the server
+ * so item activation can reuse the last displayed ballistic solution.
+ */
+USTRUCT(BlueprintType)
+struct FItemAimData
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    bool bIsValid = false;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    FVector StartLocation = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    FVector AimPoint = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    FVector LaunchVelocity = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    FVector ViewLocation = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadWrite, Category = "Aim")
+    FRotator ViewRotation = FRotator::ZeroRotator;
+};
+
+/**
+ * Result used by UI/FX code to draw the predicted arc and impact marker.
+ */
+USTRUCT(BlueprintType)
+struct FItemProjectileArcResult
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    bool bHasSolution = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    bool bHit = false;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    FVector AimPoint = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    FVector LaunchVelocity = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    FVector TracedPosition = FVector::ZeroVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    FVector TracedNormal = FVector::UpVector;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    TArray<FVector> PathPoints;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Projectile Arc")
+    FHitResult HitResult;
 };
 
 /**

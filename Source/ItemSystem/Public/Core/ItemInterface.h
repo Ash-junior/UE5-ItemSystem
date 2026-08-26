@@ -54,4 +54,16 @@ public:
 	bool ApplyItemEffect(const FItemEffectSpec& Effect, const FItemContext& Context);
 
 	virtual bool ApplyItemEffect_Implementation(const FItemEffectSpec& Effect, const FItemContext& Context) { return false; }
+	
+	/**
+	 * Add a gameplay tag to pawn tags container
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Item System")
+	bool AddStatusTag(FGameplayTag TagToAdd);
+	
+	/**
+	 * Remove a gameplay tag from pawn tags container
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Item System")
+	bool RemoveStatusTag(FGameplayTag TagToRemove);
 };

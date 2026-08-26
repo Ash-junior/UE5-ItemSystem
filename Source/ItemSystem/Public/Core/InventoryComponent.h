@@ -72,6 +72,13 @@ public:
     void Server_TryActivateItem();
 
     /**
+     * [Server Only] Attempts to use the current item with a precomputed aim arc.
+     * Use this after an aim-preview component has produced FItemAimData.
+     */
+    UFUNCTION(BlueprintCallable, Server, Reliable, Category = "Inventory")
+    void Server_TryActivateItemWithAim(const FItemAimData& AimData);
+
+    /**
      * Helper to get the current item data.
      */
     UFUNCTION(BlueprintPure, Category = "Inventory")
@@ -126,6 +133,10 @@ protected:
      * Checks if the owner is allowed to use the item (e.g. not stunned).
      */
     bool CanUseItem() const;
+
+    void TryActivateItemInternal(const FItemAimData* AimData);
+
+    bool CanUseAimData(const FItemAimData& AimData, const FItemContext& Context) const;
 
     /**
      * Creates the context struct to pass to the Item System Manager.

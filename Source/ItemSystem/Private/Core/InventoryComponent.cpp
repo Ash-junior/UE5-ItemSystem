@@ -3,11 +3,15 @@
 #include "Core/ItemSystemManager.h"
 #include "Core/ItemInterface.h"
 #include "Core/ItemSystemLog.h"
+#include "Core/ItemProjectileTrajectoryLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "Engine/ActorChannel.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/GameStateBase.h"
 #include "Kismet/GameplayStatics.h"
+#include "Strategies/Implementation/Executions/Execution_Projectile.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 UInventoryComponent::UInventoryComponent()
 {
@@ -95,6 +99,16 @@ void UInventoryComponent::Server_ClearInventory_Implementation()
 
 void UInventoryComponent::Server_TryActivateItem_Implementation()
 {
+    TryActivateItemInternal(nullptr);
+}
+
+void UInventoryComponent::Server_TryActivateItemWithAim_Implementation(const FItemAimData& AimData)
+{
+    TryActivateItemInternal(&AimData);
+}
+
+void UInventoryComponent::TryActivateItemInternal(const FItemAimData* AimData)
+{
     // 1. Validation Checks
     if (!CurrentItem || CurrentAmmo <= 0) return;
     if (!CanUseItem()) return;
@@ -109,6 +123,12 @@ void UInventoryComponent::Server_TryActivateItem_Implementation()
 
     // 3. Create Context and Spawn
     FItemContext Context = MakeItemContext();
+    if (AimData && CanUseAimData(*AimData, Context))
+    {
+        Context.LaunchVelocity = AimData->LaunchVelocity;
+        Context.bHasExternalLaunchVelocity = true;
+    }
+
     AItemExecutionStrategy* NewActor = Manager->SpawnItemExecution(Context);
     if (!NewActor)
     {
@@ -219,6 +239,67 @@ bool UInventoryComponent::CanUseItem() const
                 }
                 return false;
             }
+        }
+    }
+
+    return true;
+}
+
+bool UInventoryComponent::CanUseAimData(const FItemAimData& AimData, const FItemContext& Context) const
+{
+    if (!AimData.bIsValid || !CurrentItem)
+    {
+        return false;
+    }
+
+    if (AimData.LaunchVelocity.ContainsNaN() || AimData.StartLocation.ContainsNaN() || AimData.AimPoint.ContainsNaN())
+    {
+        return false;
+    }
+
+    if (AimData.LaunchVelocity.IsNearlyZero())
+    {
+        return false;
+    }
+
+    const float StartDistanceSq = FVector::DistSquared(AimData.StartLocation, Context.OriginTransform.GetLocation());
+    if (StartDistanceSq > FMath::Square(300.0f))
+    {
+        return false;
+    }
+
+    if (CurrentItem->ExecutionClass.IsNull())
+    {
+        return false;
+    }
+
+    UClass* ExecutionClass = CurrentItem->ExecutionClass.LoadSynchronous();
+    const AExecution_Projectile* ProjectileCDO = ExecutionClass ? Cast<AExecution_Projectile>(ExecutionClass->GetDefaultObject()) : nullptr;
+    if (!ProjectileCDO)
+    {
+        return false;
+    }
+
+    if (ProjectileCDO->GetLaunchMode() == EItemLaunchMode::Drop)
+    {
+        return false;
+    }
+
+    const float MaxExpectedSpeed = FMath::Max(ProjectileCDO->GetLaunchSpeed() * 1.25f, ProjectileCDO->GetLaunchSpeed() + 250.0f);
+    if (AimData.LaunchVelocity.Size() > MaxExpectedSpeed)
+    {
+        return false;
+    }
+
+    FItemProjectileArcParams ServerParams;
+    if (UItemProjectileTrajectoryLibrary::BuildArcParamsForItem(this, GetOwner(), Context.InstigatorController, CurrentItem, ServerParams))
+    {
+        const float AimDot = FVector::DotProduct(
+            AimData.ViewRotation.Vector().GetSafeNormal(),
+            ServerParams.ViewRotation.Vector().GetSafeNormal());
+        if (AimDot < 0.35f)
+        {
+            return false;
         }
     }
 
